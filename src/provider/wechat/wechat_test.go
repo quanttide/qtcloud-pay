@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"math/big"
 	"net/http"
@@ -257,20 +258,21 @@ func TestParseNotify_Success(t *testing.T) {
 	}
 	ptJSON, _ := json.Marshal(plaintext)
 
-	// gopay uses raw apiV3Key bytes for AES-256-GCM; nonce MUST be 12 bytes
+	// gopay uses raw apiV3Key bytes for AES-256-GCM; nonce MUST be 12 bytes and printable ASCII
+	// (otherwise json.Marshal would escape non-printable bytes and change the string length)
 	block, _ := aes.NewCipher([]byte(apiV3Key))
 	gcm, _ := cipher.NewGCM(block)
-	nonce := make([]byte, 12)
-	rand.Read(nonce)
+	nonce := []byte("ABCDEFGHIJKL") // 12 printable ASCII bytes
 	ad := "notify"
 	ct := gcm.Seal(nil, nonce, ptJSON, []byte(ad))
 
+	// gopay passes nonce as []byte(nonce) WITHOUT base64 decoding
 	envelope := map[string]any{
 		"resource": map[string]any{
 			"algorithm":       "AEAD_AES_256_GCM",
 			"ciphertext":      base64.StdEncoding.EncodeToString(ct),
 			"associated_data": ad,
-			"nonce":           base64.StdEncoding.EncodeToString(nonce),
+			"nonce":           string(nonce),
 		},
 	}
 	body, _ := json.Marshal(envelope)
@@ -392,7 +394,99 @@ func TestParseCertSerial_Valid(t *testing.T) {
 	}
 }
 
-// ── misc ──
+// ── transport error (gopay returns err) ──
+
+func TestJSAPIPay_TransportError(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	})
+	_, err := c.JSAPIPay(context.Background(), &JSAPIPayRequest{
+		OpenID: "o123", OutTradeNo: "ORD001", Total: 100,
+	})
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+}
+
+func TestQueryOrder_TransportError(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	})
+	_, err := c.QueryOrder(context.Background(), "tx001")
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+}
+
+func TestQueryOrderByOutTradeNo_TransportError(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	})
+	_, err := c.QueryOrderByOutTradeNo(context.Background(), "ORD001")
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+}
+
+func TestRefund_TransportError(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return nil, fmt.Errorf("connection refused")
+		},
+	})
+	_, err := c.Refund(context.Background(), &RefundRequest{
+		TransactionID: "tx001", OutTradeNo: "ORD001",
+		OutRefundNo: "REF001", RefundAmount: 100, TotalAmount: 100,
+	})
+	if err == nil {
+		t.Fatal("expected transport error")
+	}
+}
+
+func TestQueryOrderByOutTradeNo_NotFound(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return jsonResponse(500, map[string]string{"code": "ORDER_NOT_EXIST"}), nil
+		},
+	})
+	_, err := c.QueryOrderByOutTradeNo(context.Background(), "nonexistent")
+	if err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+func TestRefund_EmptyReason(t *testing.T) {
+	c, _ := New(testConfigObj)
+	c.gclient.GetHttpClient().SetTransport(&mockTransport{
+		fn: func(req *http.Request) (*http.Response, error) {
+			return jsonResponse(200, map[string]any{
+				"refund_id": "ref002", "out_refund_no": "REF002", "status": "PROCESSING",
+			}), nil
+		},
+	})
+	r, err := c.Refund(context.Background(), &RefundRequest{
+		TransactionID: "tx002", OutTradeNo: "ORD002",
+		OutRefundNo: "REF002", RefundAmount: 50, TotalAmount: 100,
+		// Reason intentionally empty
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Status != "PROCESSING" {
+		t.Errorf("Status = %q", r.Status)
+	}
+}
 
 func TestSetTransportNoop(t *testing.T) {
 	c, _ := New(testConfigObj)
