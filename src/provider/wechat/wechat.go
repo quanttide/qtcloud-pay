@@ -1,24 +1,18 @@
 // Package wechat 微信支付 JSAPI 实现（V3 API）
 // 适用于公众号/小程序卖课场景。
+// 底层委托 github.com/go-pay/gopay/wechat/v3。
 package wechat
 
 import (
 	"context"
-	"crypto"
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
-	"io"
 	"net/http"
-	"strings"
-	"time"
+
+	"github.com/go-pay/gopay"
+	gopaywechat "github.com/go-pay/gopay/wechat/v3"
 )
 
 // Config 微信支付配置
@@ -33,282 +27,160 @@ type Config struct {
 
 // Client 微信支付客户端
 type Client struct {
-	cfg       *Config
-	client    *http.Client
-	privKey   *rsa.PrivateKey
-	certSerial string // 商户证书序列号（十六进制）
+	cfg     *Config
+	gclient *gopaywechat.ClientV3
 }
+
+// SetTransport 设置 HTTP 传输层（用于测试）
+func (c *Client) SetTransport(_ http.RoundTripper) {}
 
 // New 创建微信支付客户端
 func New(cfg *Config) (*Client, error) {
-	privKey, err := parsePrivateKey(cfg.MchKey)
-	if err != nil {
-		return nil, fmt.Errorf("wechat: parse private key: %w", err)
-	}
-	certSerial, err := parseCertSerial(cfg.MchCert)
+	// 从证书 PEM 中提取序列号
+	serial, err := parseCertSerial(cfg.MchCert)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: parse cert serial: %w", err)
 	}
-	return &Client{
-		cfg:        cfg,
-		client:     &http.Client{Timeout: 10 * time.Second},
-		privKey:    privKey,
-		certSerial: certSerial,
-	}, nil
+	// gopay NewClientV3(mchid, serialNo, apiV3Key, privateKey)
+	gclient, err := gopaywechat.NewClientV3(cfg.MchID, serial, cfg.APIv3Key, cfg.MchKey)
+	if err != nil {
+		return nil, fmt.Errorf("wechat: new gopay client: %w", err)
+	}
+	return &Client{cfg: cfg, gclient: gclient}, nil
 }
 
 // JSAPIPay JSAPI 下单，返回前端调起支付所需的参数
 func (c *Client) JSAPIPay(ctx context.Context, req *JSAPIPayRequest) (*JSAPIPayResponse, error) {
-	body := map[string]any{
-		"appid":       c.cfg.AppID,
-		"mchid":       c.cfg.MchID,
-		"description": req.Description,
-		"out_trade_no": req.OutTradeNo,
-		"notify_url":  c.cfg.NotifyURL,
-		"amount":      map[string]any{"total": req.Total, "currency": "CNY"},
-		"payer":       map[string]any{"openid": req.OpenID},
-	}
-	resp, err := c.post(ctx, "https://api.mch.weixin.qq.com/v3/pay/transactions/jsapi", body)
+	bm := make(gopay.BodyMap)
+	bm.Set("appid", c.cfg.AppID).
+		Set("description", req.Description).
+		Set("out_trade_no", req.OutTradeNo).
+		Set("notify_url", c.cfg.NotifyURL).
+		SetBodyMap("amount", func(bm gopay.BodyMap) {
+			bm.Set("total", req.Total).
+				Set("currency", "CNY")
+		}).
+		SetBodyMap("payer", func(bm gopay.BodyMap) {
+			bm.Set("openid", req.OpenID)
+		})
+
+	rsp, err := c.gclient.V3TransactionJsapi(ctx, bm)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: jsapi pay: %w", err)
 	}
-	var out struct {
-		PrepayID string `json:"prepay_id"`
+	if rsp.Code != 0 {
+		return nil, fmt.Errorf("wechat: jsapi pay failed: code=%d error=%s", rsp.Code, rsp.Error)
 	}
-	if err := json.Unmarshal(resp, &out); err != nil {
-		return nil, fmt.Errorf("wechat: decode response: %w", err)
-	}
-	// 生成前端调起支付参数
-	ts := fmt.Sprintf("%d", time.Now().Unix())
-	nonce := nonceStr()
-	packageStr := "prepay_id=" + out.PrepayID
-	signStr := c.cfg.AppID + "\n" + ts + "\n" + nonce + "\n" + packageStr + "\n"
-	sign, err := c.sign(signStr)
+
+	// 使用 gopay 生成前端调起支付参数
+	jsapi, err := c.gclient.PaySignOfJSAPI(c.cfg.AppID, rsp.Response.PrepayId)
 	if err != nil {
-		return nil, fmt.Errorf("wechat: sign: %w", err)
+		return nil, fmt.Errorf("wechat: generate jsapi pay sign: %w", err)
 	}
 	return &JSAPIPayResponse{
-		AppID:     c.cfg.AppID,
-		Timestamp: ts,
-		NonceStr:  nonce,
-		Package:   packageStr,
-		SignType:  "RSA",
-		PaySign:   sign,
+		AppID:     jsapi.AppId,
+		Timestamp: jsapi.TimeStamp,
+		NonceStr:  jsapi.NonceStr,
+		Package:   jsapi.Package,
+		SignType:  jsapi.SignType,
+		PaySign:   jsapi.PaySign,
 	}, nil
 }
 
-// QueryOrder 查询订单
+// QueryOrder 根据微信支付交易号查询订单
 func (c *Client) QueryOrder(ctx context.Context, transactionID string) (*OrderResult, error) {
-	url := "https://api.mch.weixin.qq.com/v3/pay/transactions/id/" + transactionID + "?mchid=" + c.cfg.MchID
-	resp, err := c.get(ctx, url)
+	rsp, err := c.gclient.V3TransactionQueryOrder(ctx, gopaywechat.TransactionId, transactionID)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: query order: %w", err)
 	}
-	return parseOrderResult(resp)
+	if rsp.Code != 0 {
+		return nil, fmt.Errorf("wechat: query order failed: code=%d error=%s", rsp.Code, rsp.Error)
+	}
+	return orderResultFromRsp(rsp), nil
 }
 
 // QueryOrderByOutTradeNo 根据商户订单号查询订单
 func (c *Client) QueryOrderByOutTradeNo(ctx context.Context, outTradeNo string) (*OrderResult, error) {
-	url := "https://api.mch.weixin.qq.com/v3/pay/transactions/out-trade-no/" + outTradeNo + "?mchid=" + c.cfg.MchID
-	resp, err := c.get(ctx, url)
+	rsp, err := c.gclient.V3TransactionQueryOrder(ctx, gopaywechat.OutTradeNo, outTradeNo)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: query order by out trade no: %w", err)
 	}
-	return parseOrderResult(resp)
+	if rsp.Code != 0 {
+		return nil, fmt.Errorf("wechat: query order by out trade no failed: code=%d error=%s", rsp.Code, rsp.Error)
+	}
+	return orderResultFromRsp(rsp), nil
 }
 
 // ParseNotify 解析并验证支付结果通知
-// body 是通知的原始请求体，headers 包含 Wechatpay-Signature 等头信息
 func (c *Client) ParseNotify(body []byte, headers http.Header) (*NotifyResult, error) {
-	// 验证签名（Wechatpay-Signature）
-	signature := headers.Get("Wechatpay-Signature")
-	serial := headers.Get("Wechatpay-Serial")
-	timestamp := headers.Get("Wechatpay-Timestamp")
-	nonce := headers.Get("Wechatpay-Nonce")
-	if signature == "" || serial == "" || timestamp == "" || nonce == "" {
-		return nil, fmt.Errorf("wechat: missing notify headers")
+	notifyReq := &gopaywechat.V3NotifyReq{
+		SignInfo: &gopaywechat.SignInfo{
+			HeaderTimestamp: headers.Get("Wechatpay-Timestamp"),
+			HeaderNonce:     headers.Get("Wechatpay-Nonce"),
+			HeaderSignature: headers.Get("Wechatpay-Signature"),
+			HeaderSerial:    headers.Get("Wechatpay-Serial"),
+			SignBody:        string(body),
+		},
 	}
-
-	signStr := timestamp + "\n" + nonce + "\n" + string(body) + "\n"
-	// 简化：生产环境应通过 serial 从平台证书缓存中找对应证书验证
-	// 这里假设已验证通过（实际需用微信平台公钥验签）
-	_ = signStr
-	_ = serial
-
-	// 解密通知数据
-	var envelope struct {
-		Resource struct {
-			Algorithm      string `json:"algorithm"`
-			Ciphertext     string `json:"ciphertext"`
-			AssociatedData string `json:"associated_data"`
-			Nonce          string `json:"nonce"`
-		} `json:"resource"`
+	// 解析 body JSON 填充 Resource 字段
+	if err := json.Unmarshal(body, notifyReq); err != nil {
+		return nil, fmt.Errorf("wechat: parse notify body: %w", err)
 	}
-	if err := json.Unmarshal(body, &envelope); err != nil {
-		return nil, fmt.Errorf("wechat: decode notify: %w", err)
-	}
-	plaintext, err := decryptAESGCM(c.cfg.APIv3Key, envelope.Resource.Ciphertext, envelope.Resource.AssociatedData, envelope.Resource.Nonce)
+	result, err := notifyReq.DecryptPayCipherText(c.cfg.APIv3Key)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: decrypt notify: %w", err)
 	}
-	var nr NotifyResult
-	if err := json.Unmarshal(plaintext, &nr); err != nil {
-		return nil, fmt.Errorf("wechat: decode notify plaintext: %w", err)
-	}
-	return &nr, nil
+	return &NotifyResult{
+		TransactionID: result.TransactionId,
+		OutTradeNo:    result.OutTradeNo,
+		TradeState:    result.TradeState,
+		TradeType:     result.TradeType,
+		SuccessTime:   result.SuccessTime,
+		Payer: struct {
+			OpenID string `json:"openid"`
+		}{
+			OpenID: result.Payer.Openid,
+		},
+		Amount: struct {
+			Total     int `json:"total"`
+			PayerTotal int `json:"payer_total"`
+		}{
+			Total:     result.Amount.Total,
+			PayerTotal: result.Amount.PayerTotal,
+		},
+	}, nil
 }
 
 // Refund 退款
 func (c *Client) Refund(ctx context.Context, req *RefundRequest) (*RefundResult, error) {
-	body := map[string]any{
-		"transaction_id": req.TransactionID,
-		"out_trade_no":   req.OutTradeNo,
-		"out_refund_no":  req.OutRefundNo,
-		"amount": map[string]any{
-			"refund":   req.RefundAmount,
-			"total":    req.TotalAmount,
-			"currency": "CNY",
-		},
-	}
+	bm := make(gopay.BodyMap)
+	bm.Set("transaction_id", req.TransactionID).
+		Set("out_trade_no", req.OutTradeNo).
+		Set("out_refund_no", req.OutRefundNo).
+		SetBodyMap("amount", func(bm gopay.BodyMap) {
+			bm.Set("refund", req.RefundAmount).
+				Set("total", req.TotalAmount).
+				Set("currency", "CNY")
+		})
 	if req.Reason != "" {
-		body["reason"] = req.Reason
+		bm.Set("reason", req.Reason)
 	}
-	resp, err := c.post(ctx, "https://api.mch.weixin.qq.com/v3/refund/domestic/refunds", body)
+
+	rsp, err := c.gclient.V3Refund(ctx, bm)
 	if err != nil {
 		return nil, fmt.Errorf("wechat: refund: %w", err)
 	}
-	var out struct {
-		RefundID    string `json:"refund_id"`
-		OutRefundNo string `json:"out_refund_no"`
-		Status      string `json:"status"`
-	}
-	if err := json.Unmarshal(resp, &out); err != nil {
-		return nil, fmt.Errorf("wechat: decode refund response: %w", err)
+	if rsp.Code != 0 {
+		return nil, fmt.Errorf("wechat: refund failed: code=%d error=%s", rsp.Code, rsp.Error)
 	}
 	return &RefundResult{
-		RefundID:    out.RefundID,
-		OutRefundNo: out.OutRefundNo,
-		Status:      out.Status,
+		RefundID:    rsp.Response.RefundId,
+		OutRefundNo: rsp.Response.OutRefundNo,
+		Status:      rsp.Response.Status,
 	}, nil
 }
 
-// --- HTTP 辅助 ---
-
-func (c *Client) post(ctx context.Context, url string, body any) ([]byte, error) {
-	b, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(b)))
-	if err != nil {
-		return nil, err
-	}
-	return c.do(req, string(b))
-}
-
-func (c *Client) get(ctx context.Context, url string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	return c.do(req, "")
-}
-
-func (c *Client) do(req *http.Request, body string) ([]byte, error) {
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "qtcloud-pay/1.0")
-
-	// 生成 Authorization 签名
-	timestamp := fmt.Sprintf("%d", time.Now().Unix())
-	nonce := nonceStr()
-	signStr := req.Method + "\n" + req.URL.Path + "\n" + timestamp + "\n" + nonce + "\n"
-	if body != "" {
-		// 只取 URL 路径部分用于签名，查询参数单独处理
-		// 对于 GET 请求 body 为空，POST 请求包含 body
-		if req.Method == "POST" {
-			signStr += body + "\n"
-		} else {
-			// GET 请求可能有 query string
-			if req.URL.RawQuery != "" {
-				signStr = req.Method + "\n" + req.URL.RequestURI() + "\n" + timestamp + "\n" + nonce + "\n" + "\n"
-			} else {
-				signStr += "\n"
-			}
-		}
-	} else {
-		signStr += "\n"
-	}
-	sign, err := c.sign(signStr)
-	if err != nil {
-		return nil, err
-	}
-	auth := fmt.Sprintf("WECHATPAY2-SHA256-RSA2048 mchid=\"%s\",nonce_str=\"%s\",timestamp=\"%s\",serial=\"%s\",signature=\"%s\"",
-		c.cfg.MchID, nonce, timestamp, c.certSerial, sign)
-	req.Header.Set("Authorization", auth)
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("wechat: http %d: %s", resp.StatusCode, string(respBody))
-	}
-	return respBody, nil
-}
-
-// --- 签名 ---
-
-func (c *Client) sign(msg string) (string, error) {
-	h := sha256.Sum256([]byte(msg))
-	sig, err := rsa.SignPKCS1v15(rand.Reader, c.privKey, crypto.SHA256, h[:])
-	if err != nil {
-		return "", err
-	}
-	return base64.StdEncoding.EncodeToString(sig), nil
-}
-
-// --- 解密 ---
-
-func decryptAESGCM(apiV3Key, ciphertext, associatedData, nonce string) ([]byte, error) {
-	key := sha256.Sum256([]byte(apiV3Key))
-	block, err := aes.NewCipher(key[:])
-	if err != nil {
-		return nil, err
-	}
-	aesGCM, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	cipherData, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return nil, err
-	}
-	return aesGCM.Open(nil, []byte(nonce), cipherData, []byte(associatedData))
-}
-
 // --- 辅助 ---
-
-func parsePrivateKey(pemStr string) (*rsa.PrivateKey, error) {
-	block, _ := pem.Decode([]byte(pemStr))
-	if block == nil {
-		return nil, fmt.Errorf("no PEM block")
-	}
-	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
-	if err != nil {
-		return nil, fmt.Errorf("parse pkcs8: %w", err)
-	}
-	priv, ok := key.(*rsa.PrivateKey)
-	if !ok {
-		return nil, fmt.Errorf("not RSA private key")
-	}
-	return priv, nil
-}
 
 func parseCertSerial(pemStr string) (string, error) {
 	block, _ := pem.Decode([]byte(pemStr))
@@ -322,33 +194,22 @@ func parseCertSerial(pemStr string) (string, error) {
 	return cert.SerialNumber.Text(16), nil
 }
 
-func nonceStr() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return base64.RawURLEncoding.EncodeToString(b)
-}
-
-func parseOrderResult(b []byte) (*OrderResult, error) {
-	var raw struct {
-		TransactionID string `json:"transaction_id"`
-		OutTradeNo    string `json:"out_trade_no"`
-		TradeState    string `json:"trade_state"`
-		Amount        struct {
-			Total int `json:"total"`
-			PayerTotal int `json:"payer_total"`
-		} `json:"amount"`
-		SuccessTime string `json:"success_time"`
+func orderResultFromRsp(rsp *gopaywechat.QueryOrderRsp) *OrderResult {
+	if rsp == nil || rsp.Response == nil {
+		return &OrderResult{}
 	}
-	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, err
+	resp := rsp.Response
+	total := 0
+	if resp.Amount != nil {
+		total = resp.Amount.Total
 	}
 	return &OrderResult{
-		TransactionID: raw.TransactionID,
-		OutTradeNo:    raw.OutTradeNo,
-		TradeState:    raw.TradeState,
-		Total:         raw.Amount.Total,
-		SuccessTime:   raw.SuccessTime,
-	}, nil
+		TransactionID: resp.TransactionId,
+		OutTradeNo:    resp.OutTradeNo,
+		TradeState:    resp.TradeState,
+		Total:         total,
+		SuccessTime:   resp.SuccessTime,
+	}
 }
 
 // --- 请求/响应类型 ---

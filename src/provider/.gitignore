@@ -1,0 +1,9 @@
+# Go coverage output
+*.out
+*.cover.out
+
+# Go vendor
+vendor/
+
+# Go workspace
+*.work
