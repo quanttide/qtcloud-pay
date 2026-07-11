@@ -29,9 +29,12 @@ type Client struct {
 }
 
 // SetTransport 设置 HTTP 传输层（用于测试）
-func (c *Client) SetTransport(_ http.RoundTripper) {}
+func (c *Client) SetTransport(rt http.RoundTripper) {
+	c.gclient.GetHttpClient().SetTransport(rt)
+}
 
 // SetAPIURL 设置 API 地址（用于测试）
+// Transport 级别的拦截已由 SetTransport 处理，此方法保留以保持接口兼容。
 func (c *Client) SetAPIURL(_ string) {}
 
 // New 创建支付宝客户端

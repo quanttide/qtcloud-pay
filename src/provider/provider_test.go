@@ -251,12 +251,13 @@ func TestAlipayPay_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"alipay_trade_query_response": map[string]any{
-				"out_trade_no": "ORD001", "trade_no": "tx001",
-				"trade_status": "TRADE_SUCCESS", "total_amount": "99.99",
-			},
-			"sign": "",
-		})
+				"alipay_trade_query_response": map[string]any{
+					"code": "10000", "msg": "Success",
+					"out_trade_no": "ORD001", "trade_no": "tx001",
+					"trade_status": "TRADE_SUCCESS", "total_amount": "99.99",
+				},
+				"sign": "",
+			})
 	}))
 	defer ts.Close()
 
@@ -280,12 +281,13 @@ func TestAlipayPay_Query_UnknownStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"alipay_trade_query_response": map[string]any{
-				"out_trade_no": "ORD001", "trade_no": "tx001",
-				"trade_status": "WAIT_BUYER_PAY", "total_amount": "99.99",
-			},
-			"sign": "",
-		})
+				"alipay_trade_query_response": map[string]any{
+					"code": "10000", "msg": "Success",
+					"out_trade_no": "ORD001", "trade_no": "tx001",
+					"trade_status": "WAIT_BUYER_PAY", "total_amount": "99.99",
+				},
+				"sign": "",
+			})
 	}))
 	defer ts.Close()
 
@@ -306,12 +308,13 @@ func TestAlipayPay_Query_UnknownTradeStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"alipay_trade_query_response": map[string]any{
-				"out_trade_no": "ORD001", "trade_no": "tx001",
-				"trade_status": "SOME_UNKNOWN_STATUS", "total_amount": "0.00",
-			},
-			"sign": "",
-		})
+				"alipay_trade_query_response": map[string]any{
+					"code": "10000", "msg": "Success",
+					"out_trade_no": "ORD001", "trade_no": "tx001",
+					"trade_status": "SOME_UNKNOWN_STATUS", "total_amount": "0.00",
+				},
+				"sign": "",
+			})
 	}))
 	defer ts.Close()
 
@@ -332,11 +335,12 @@ func TestAlipayPay_Refund(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"alipay_trade_refund_response": map[string]any{
-				"out_trade_no": "ORD001", "trade_no": "tx001",
-			},
-			"sign": "",
-		})
+				"alipay_trade_refund_response": map[string]any{
+					"code": "10000", "msg": "Success",
+					"out_trade_no": "ORD001", "trade_no": "tx001",
+				},
+				"sign": "",
+			})
 	}))
 	defer ts.Close()
 
@@ -410,6 +414,25 @@ func TestAlipayPay_Refund_Error(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error")
 	}
+}
+
+func TestAlipayPay_Pay_EmptyOrderID(t *testing.T) {
+	// Empty OrderID causes PagePay to fail (gopay missing required field),
+	// exercising the error return path in the AlipayPay adapter.
+	p := mustNewAlipayPay(t)
+	_, err := p.Pay(context.Background(), &PayRequest{
+		OrderID: "", Amount: 99.99, Subject: "test",
+	})
+	if err == nil {
+		t.Fatal("expected error for empty OrderID")
+	}
+}
+
+// TestAlipayPay_SetAPIURL confirms SetAPIURL is callable (no-op) on the adapter.
+func TestAlipayPay_SetAPIURL(t *testing.T) {
+	p := mustNewAlipayPay(t)
+	// Should not panic or error
+	p.client.SetAPIURL("http://example.com")
 }
 
 func TestParseAmount(t *testing.T) {

@@ -32,7 +32,9 @@ type Client struct {
 }
 
 // SetTransport 设置 HTTP 传输层（用于测试）
-func (c *Client) SetTransport(_ http.RoundTripper) {}
+func (c *Client) SetTransport(rt http.RoundTripper) {
+	c.gclient.GetHttpClient().SetTransport(rt)
+}
 
 // New 创建微信支付客户端
 func New(cfg *Config) (*Client, error) {
