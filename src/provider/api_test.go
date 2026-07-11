@@ -169,6 +169,50 @@ func TestAPI_Refund_MissingBody(t *testing.T) {
 	}
 }
 
+func TestAPI_Pay_WrongMethod(t *testing.T) {
+	s := NewServer(":0", &apiMockProvider{})
+	hs := httptest.NewServer(s.Handler())
+	defer hs.Close()
+
+	resp, _ := http.Get(hs.URL + "/pay")
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", resp.StatusCode)
+	}
+}
+
+func TestAPI_Query_WrongMethod(t *testing.T) {
+	s := NewServer(":0", &apiMockProvider{})
+	hs := httptest.NewServer(s.Handler())
+	defer hs.Close()
+
+	resp, _ := http.Post(hs.URL+"/query/ORD001", "text/plain", nil)
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", resp.StatusCode)
+	}
+}
+
+func TestAPI_Refund_WrongMethod(t *testing.T) {
+	s := NewServer(":0", &apiMockProvider{})
+	hs := httptest.NewServer(s.Handler())
+	defer hs.Close()
+
+	resp, _ := http.Get(hs.URL + "/refund")
+	if resp.StatusCode != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want 405", resp.StatusCode)
+	}
+}
+
+func TestAPI_Refund_InvalidBody(t *testing.T) {
+	s := NewServer(":0", &apiMockProvider{})
+	hs := httptest.NewServer(s.Handler())
+	defer hs.Close()
+
+	resp, _ := http.Post(hs.URL+"/refund", "application/json", bytes.NewReader([]byte(`not-json`)))
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

@@ -15,9 +15,9 @@ def test_api_http_endpoints_pass():
     """运行 Go provider 包内的 API 测试用例。
 
     测试覆盖：
-      - POST /pay           创建支付（正常、请求体错误、Provider 错误）
-      - GET  /query/{id}    查询订单（正常、空 id、未找到）
-      - POST /refund        申请退款（正常、Provider 错误、请求体错误）
+      - POST /pay           创建支付（正常、请求体错误、Provider 错误、错误方法）
+      - GET  /query/{id}    查询订单（正常、空 id、未找到、错误方法）
+      - POST /refund        申请退款（正常、Provider 错误、请求体错误、invalid JSON、错误方法）
     """
     provider_dir = PROJECT_ROOT / "src" / "provider"
     # 只跑 API 相关的测试，避免混入其他 provider 测试
@@ -41,4 +41,4 @@ def test_api_http_endpoints_pass():
     passed_count = result.stdout.count("--- PASS:")
     failed_count = result.stdout.count("--- FAIL:")
     assert failed_count == 0, f"{failed_count} API test(s) failed"
-    assert passed_count >= 8, f"expected >=8 passed API tests, got {passed_count}"
+    assert passed_count >= 13, f"expected >=13 passed API tests, got {passed_count}"
