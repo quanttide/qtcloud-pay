@@ -75,6 +75,49 @@ type Provider interface {
 }
 ```
 
+## 版本管理
+
+### 版本策略
+
+| 范围 | 标签格式 | 示例 | 说明 |
+|------|----------|------|------|
+| 根项目 | `vX.Y.Z` | `v0.0.1` | 应用整体版本，记录 `pyproject.toml` |
+| provider | `provider/vX.Y.Z` | `provider/v0.0.1` | Go 模块版本，仅记录 `CHANGELOG` |
+
+### Go 模块版本
+
+Go 模块的版本不由 `go.mod` 文件声明，而是由 **git tag** 决定。`go.mod` 只声明模块路径：
+
+```go
+module github.com/quanttide/qtcloud-pay/src/provider
+```
+
+其他项目通过 tag 引用特定版本：
+
+```bash
+go get github.com/quanttide/qtcloud-pay/src/provider@provider/v0.0.1
+```
+
+Go toolchain 自动根据 tag 解析版本，`go.mod` 无需写入版本号。
+
+### 发布流程
+
+使用 `qtcloud-devops release` 命令：
+
+```bash
+# 发布 provider 模块
+qtcloud-devops release publish --version provider/v0.0.1 -y
+
+# 发布根项目
+qtcloud-devops release publish --version v0.0.1 -y
+```
+
+该命令自动处理：
+- CHANGELOG 追加条目
+- `pyproject.toml` 版本号更新（仅根项目）
+- 创建并推送 git tag
+- 创建 GitHub Release
+
 ## 配置
 
 当前硬编码配置见各子包 Config 结构体：
