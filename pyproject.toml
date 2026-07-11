@@ -1,6 +1,6 @@
 [project]
 name = "qtcloud-pay"
-version = "0.1.0"
+version = "0.0.1"
 description = "量潮支付云 — 量潮知识管理体系中的支付云服务平台"
 readme = "README.md"
 license = { text = "Apache-2.0" }
