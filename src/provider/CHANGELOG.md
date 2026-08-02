@@ -31,6 +31,7 @@
 
 ### Changed
 - **金额传输改为元（两位小数数字）**：新增 `pkg/money.Cents`（JSON 元 ↔ 内部分，严格校验拒绝三位及以上小数）；transport 请求/响应金额字段统一经 `Cents` 转换，内部账本仍为整数分（service/repository 零改动）；`POST /reconcile/bank` CSV 保持分（`amount_cents`）；文档与三层测试（单测/itest/端到端）同步更新
+- 新增 Docker 部署：多阶段 `Dockerfile`（golang:1.26-alpine 构建含 SQLite CGO 工具链 → alpine:3.20 非 root 运行）+ `.dockerignore` + Makefile `docker-build`/`docker-run`
 
 ## [0.0.1] - 2026-07-11
 

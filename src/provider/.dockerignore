@@ -1,0 +1,6 @@
+# 构建上下文排除：测试与本地产物不进入镜像
+.git
+bin
+*.test
+tests
+docs
