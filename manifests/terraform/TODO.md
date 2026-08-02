@@ -2,6 +2,8 @@
 
 ## 上线前(阻塞项)
 
+- [ ] 检查 `provider/v0.1.0-alpha.1` 发布状态:[Deploy Provider workflow](https://github.com/quanttide/qtcloud-pay/actions/runs/30762142832)(镜像构建 + terraform apply)跑完后验证 FC 服务可用
+
 - [x] 配置阿里云凭证：本地 `~/.aliyun/config.json` + CI GitHub org secrets;RAM 用户授权 `PowerUserAccess` + `AliyunRAMFullAccess`
 - [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，已创建）
 - [x] 镜像由 deploy-provider workflow 构建发布（Docker Hub，`provider/*` tag 触发）
