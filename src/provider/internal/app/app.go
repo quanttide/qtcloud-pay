@@ -51,6 +51,14 @@ func Open(driver, dsn string) (*gorm.DB, error) {
 	); err != nil {
 		return nil, err
 	}
+	if driver != "postgres" {
+		// SQLite 单写者：限制单连接，避免并发写事务触发 database is locked
+		sqlDB, err := db.DB()
+		if err != nil {
+			return nil, err
+		}
+		sqlDB.SetMaxOpenConns(1)
+	}
 	return db, nil
 }
 

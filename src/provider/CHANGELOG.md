@@ -20,11 +20,14 @@
 - 按标准 Go 项目布局重构结构：`internal/` 私有代码分层，`channel` 渠道模块（transport/service/adapters/model），`wechat`/`alipay` 移入 `internal/channel/`（不再可外部导入）
 - 配置由构造时传参改为环境变量注入（`WECHAT_*` / `ALIPAY_*`，存储用 `DB_DRIVER` / `DATABASE_URL` / `DB_SQLITE_DSN`）
 - 更新 README：使用方式由库引用改为服务运行（环境变量 + HTTP API），补充账本核心 API
+- 抽取 `internal/app` 组装包（`Open` / `OpenDB` / `BuildMux` / `NewProvider`），生产入口与测试共用
+- Python 端到端测试：编译真实二进制 + 临时 SQLite 库启动服务，`tests/` 下覆盖 tests.md 全部 25 个 TC（含并发幂等、过期状态机、三业务总对账）
 
 ### Fixed
 - 修复核销交易幂等键冲突：优惠券与代金券自增 ID 各自从 1 开始，幂等键加入抵扣类型区分（`settle:{order}:redeem:{kind}:{id}`）
 - 修复发券交易幂等键跨类型冲突：优惠券与代金券可能使用相同批次号，幂等键按类型命名空间（`issue:coupon:{batch}` / `issue:voucher:{batch}`）
 - 修复折扣券语义：rate 为折扣力度（9 折 = rate 90 = 省 10%），抵扣 = 应付 × (100 − rate) / 100；多张折扣券选力度最大（rate 最低）
+- 修复 SQLite 并发写锁：`app.Open` 对非 PostgreSQL 驱动限制连接池为单连接（`SetMaxOpenConns(1)`），消除文件库并发结算 `database is locked` → 500（Go `:memory:` 测试因自设单连接未暴露，Python 端到端并发用例才复现）
 
 ## [0.0.1] - 2026-07-11
 

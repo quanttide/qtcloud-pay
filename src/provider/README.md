@@ -122,6 +122,26 @@ make build && ./bin/provider-server -addr :8080 -channel wechat
 
 金额单位：账本核心接口的 `amount` 均为整数分。
 
+## 测试
+
+三层测试，覆盖同一份测试设计（[tests.md](../../../../data/roadmap/tests.md) 的 TC-A/B/C/X）：
+
+| 层 | 位置 | 说明 |
+|----|------|------|
+| 单元测试 | 各包 `*_test.go` | 服务逻辑 + GORM repository（SQLite `:memory:`），覆盖率 ≥95% |
+| Go 集成测试 | `internal/itest/` | 真库 + 全模块真实组装，`httptest` 驱动 HTTP 链路 |
+| Python 端到端 | `../../tests/` | **编译并启动真实二进制**，经 HTTP API 访问（`uv run pytest tests/`） |
+
+运行：
+
+```sh
+# Go 单测 + 集成测试
+make test
+
+# Python 端到端（依赖 Go toolchain + uv）
+cd ../../ && uv run pytest tests/
+```
+
 ## 已实现能力
 
 | 功能 | 微信 JSAPI | 支付宝网页支付 |
