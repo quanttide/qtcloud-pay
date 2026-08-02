@@ -1,17 +1,19 @@
 # qtcloud_pay_studio
 
-A new Flutter project.
+量潮支付工作台客户端 — 管理人员图形化工作台（Flutter 桌面应用，Windows/macOS）。
 
-## Getting Started
+对接服务端账本 API（`src/provider`），把充值登记、发券、订单结算、对账等操作包装成页面；客户端只做展示与表单，不承载账务逻辑。
 
-This project is a starting point for a Flutter application.
+## 文档
 
-A few resources to get you started if this is your first Flutter project:
+- [doc/index.md](doc/index.md) — 模块划分设计（screens / widgets / models / services）
+- [服务端设计文档](../provider/docs/index.md) — 账本 API 模块划分
+- [工作台设计](../../../../data/roadmap/studio.md) — 页面与组件需求来源
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+## 开发
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run -d windows   # 或 -d macos
+flutter test
+```
