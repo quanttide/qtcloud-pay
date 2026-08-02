@@ -16,7 +16,7 @@
 type Coupon struct {
     ID        int64
     AccountID string
-    BatchNo   string    // 幂等：一批只发一次
+    	BatchNo   string    // 普通索引：幂等由发券交易幂等键保证（一批多张券共用批次号）
     Type      string    // discount（折扣券）/ full_reduction（满减券）
     Rate      int       // 折扣券：整数百分比（90 = 9 折）
     Threshold int64     // 满减券：门槛（分）
@@ -35,7 +35,9 @@ type Coupon struct {
 
 ### 发放
 
-批量发放：`count` + `batchNo`，同批次生成 count 张券，共一条发券交易（type=issue，note 记批次）；同 `batchNo` 重复提交不重发。
+批量发放：`count` + `batchNo`，同批次生成 count 张券，共一条发券交易（type=issue，note 记批次）。
+
+幂等：同 `batchNo` 重复提交不重发——由发券交易幂等键 `issue:coupon:{batch_no}`（全局唯一）保证；`batch_no` 为普通索引，`CountByBatch` 作防御性检查（同一批次多张券共用一个批次号，不能建唯一索引）。
 
 ### 核销（供结算调用）
 

@@ -121,7 +121,10 @@ func TestTransport_List(t *testing.T) {
 		t.Errorf("coupons = %d, want 3", len(got.Coupons))
 	}
 
-	resp2, _ := http.Get(ts.URL + "/accounts/%20/coupons")
+	resp2, err := http.Get(ts.URL + "/accounts/%20/coupons")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty id status = %d, want 400", resp2.StatusCode)
@@ -139,7 +142,10 @@ func TestTransport_List_ServiceError(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	resp, _ := http.Get(ts.URL + "/accounts/acc_1/coupons")
+	resp, err := http.Get(ts.URL + "/accounts/acc_1/coupons")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", resp.StatusCode)

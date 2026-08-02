@@ -24,9 +24,9 @@ const maxBatchCount = 1000
 type IssueRequest struct {
 	AccountID string
 	Type      string
-	Rate      int    // 折扣券
-	Threshold int64  // 满减券门槛
-	Amount    int64  // 满减券减额
+	Rate      int   // 折扣券
+	Threshold int64 // 满减券门槛
+	Amount    int64 // 满减券减额
 	Scope     string
 	ProductID string
 	ExpiresAt time.Time
@@ -53,7 +53,7 @@ func (s *Service) Issue(ctx context.Context, req *IssueRequest) error {
 	if err := validateIssue(req); err != nil {
 		return err
 	}
-	key := "issue:" + req.BatchNo
+	key := "issue:coupon:" + req.BatchNo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {

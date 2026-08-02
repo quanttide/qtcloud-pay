@@ -3,14 +3,27 @@
 ## [Unreleased]
 
 ### Added
-- 新增 `cmd/server` 入口：从环境变量加载配置、组装 Provider、启动服务，支持优雅关闭
+- 新增 `cmd/server` 入口：从环境变量加载配置、组装依赖、启动服务，支持优雅关闭
 - 新增 `internal/middleware` 请求日志中间件（方法、路径、状态码、耗时）
 - 新增 `Makefile`（build/run/test/vet/lint/clean）
+- **实现账本核心（服务端 v0.1.0，M1–M4）**：
+  - `internal/account`：账户与余额，充值登记（打款凭证号幂等）
+  - `internal/transaction`：交易账本，账本写入唯一入口（幂等键 + 唯一约束），流水查询
+  - `internal/coupon` / `internal/voucher`：优惠券（折扣/满减）与代金券批量发放（批次号幂等）、过期惰性流转、结算核销/抵现
+  - `internal/billing`：计费规则，默认抵扣顺序「满减 → 折扣 → 代金券 → 余额」（纯计算）
+  - `internal/order`：订单与结算，单事务编排（锁账户串行化、消费/核销交易、结算明细快照）
+  - `internal/reconciliation`：对账与可查（余额-交易一致性校验、银行流水 CSV 核对、账单导出）
+- 存储：GORM 统一调度，开发 SQLite / 生产 PostgreSQL 方言切换；AutoMigrate 建表
+- 账本核心单元测试覆盖各包 95% 以上（多数 100%）
 
 ### Changed
 - 按标准 Go 项目布局重构结构：`internal/` 私有代码分层，`channel` 渠道模块（transport/service/adapters/model），`wechat`/`alipay` 移入 `internal/channel/`（不再可外部导入）
-- 配置由构造时传参改为环境变量注入（`WECHAT_*` / `ALIPAY_*`）
-- 更新 README：使用方式由库引用改为服务运行（环境变量 + HTTP API）
+- 配置由构造时传参改为环境变量注入（`WECHAT_*` / `ALIPAY_*`，存储用 `DB_DRIVER` / `DATABASE_URL` / `DB_SQLITE_DSN`）
+- 更新 README：使用方式由库引用改为服务运行（环境变量 + HTTP API），补充账本核心 API
+
+### Fixed
+- 修复核销交易幂等键冲突：优惠券与代金券自增 ID 各自从 1 开始，幂等键加入抵扣类型区分（`settle:{order}:redeem:{kind}:{id}`）
+- 修复发券交易幂等键跨类型冲突：优惠券与代金券可能使用相同批次号，幂等键按类型命名空间（`issue:coupon:{batch}` / `issue:voucher:{batch}`）
 
 ## [0.0.1] - 2026-07-11
 

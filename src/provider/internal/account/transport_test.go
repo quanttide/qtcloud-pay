@@ -159,7 +159,10 @@ func TestTransport_Transactions_ServiceError(t *testing.T) {
 	ts := httptest.NewServer(mux)
 	defer ts.Close()
 
-	resp, _ := http.Get(ts.URL + "/accounts/acc_1/transactions")
+	resp, err := http.Get(ts.URL + "/accounts/acc_1/transactions")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", resp.StatusCode)
@@ -169,13 +172,19 @@ func TestTransport_Transactions_ServiceError(t *testing.T) {
 func TestTransport_Get_Errors(t *testing.T) {
 	ts, _ := newTestServer(t)
 
-	resp, _ := http.Get(ts.URL + "/accounts/acc_missing")
+	resp, err := http.Get(ts.URL + "/accounts/acc_missing")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusNotFound {
 		t.Errorf("missing status = %d, want 404", resp.StatusCode)
 	}
 	resp.Body.Close()
 
-	resp, _ = http.Get(ts.URL + "/accounts/%20")
+	resp, err = http.Get(ts.URL + "/accounts/%20")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty id status = %d, want 400", resp.StatusCode)
 	}
@@ -205,7 +214,10 @@ func TestTransport_Transactions(t *testing.T) {
 	}
 
 	// 空账户返回空列表
-	resp2, _ := http.Get(ts.URL + "/accounts/acc_missing/transactions")
+	resp2, err := http.Get(ts.URL + "/accounts/acc_missing/transactions")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp2.Body.Close()
 	if resp2.StatusCode != http.StatusOK {
 		t.Errorf("empty status = %d, want 200", resp2.StatusCode)
@@ -218,7 +230,10 @@ func TestTransport_Transactions(t *testing.T) {
 		t.Errorf("transactions = %d, want 0", len(body2.Transactions))
 	}
 
-	resp3, _ := http.Get(ts.URL + "/accounts/%20/transactions")
+	resp3, err := http.Get(ts.URL + "/accounts/%20/transactions")
+	if err != nil {
+		t.Fatal(err)
+	}
 	defer resp3.Body.Close()
 	if resp3.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty id status = %d, want 400", resp3.StatusCode)

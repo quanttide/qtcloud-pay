@@ -4,11 +4,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // mockProvider for API testing
@@ -94,7 +97,10 @@ func TestAPI_Query_Success(t *testing.T) {
 	hs := httptest.NewServer(s.Handler())
 	defer hs.Close()
 
-	resp, _ := http.Get(hs.URL + "/query/ORD001")
+	resp, err := http.Get(hs.URL + "/query/ORD001")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d", resp.StatusCode)
 	}
@@ -111,7 +117,10 @@ func TestAPI_Query_EmptyOrderID(t *testing.T) {
 	hs := httptest.NewServer(s.Handler())
 	defer hs.Close()
 
-	resp, _ := http.Get(hs.URL + "/query/%20")
+	resp, err := http.Get(hs.URL + "/query/%20")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
 	}
@@ -122,7 +131,10 @@ func TestAPI_Query_NotFound(t *testing.T) {
 	hs := httptest.NewServer(s.Handler())
 	defer hs.Close()
 
-	resp, _ := http.Get(hs.URL + "/query/NONEXISTENT")
+	resp, err := http.Get(hs.URL + "/query/NONEXISTENT")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusInternalServerError {
 		t.Errorf("status = %d, want 500", resp.StatusCode)
 	}
@@ -174,7 +186,10 @@ func TestAPI_Pay_WrongMethod(t *testing.T) {
 	hs := httptest.NewServer(s.Handler())
 	defer hs.Close()
 
-	resp, _ := http.Get(hs.URL + "/pay")
+	resp, err := http.Get(hs.URL + "/pay")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", resp.StatusCode)
 	}
@@ -196,7 +211,10 @@ func TestAPI_Refund_WrongMethod(t *testing.T) {
 	hs := httptest.NewServer(s.Handler())
 	defer hs.Close()
 
-	resp, _ := http.Get(hs.URL + "/refund")
+	resp, err := http.Get(hs.URL + "/refund")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if resp.StatusCode != http.StatusMethodNotAllowed {
 		t.Errorf("status = %d, want 405", resp.StatusCode)
 	}
@@ -210,6 +228,113 @@ func TestAPI_Refund_InvalidBody(t *testing.T) {
 	resp, _ := http.Post(hs.URL+"/refund", "application/json", bytes.NewReader([]byte(`not-json`)))
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("status = %d, want 400", resp.StatusCode)
+	}
+}
+
+func TestRegisterRoutes(t *testing.T) {
+	mux := http.NewServeMux()
+	RegisterRoutes(mux, &apiMockProvider{})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	body := bytes.NewReader(mustJSON(t, &PayRequest{OrderID: "ORD001", Amount: 99.99, Subject: "测试"}))
+	resp, err := http.Post(ts.URL+"/pay", "application/json", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("status = %d, want 200", resp.StatusCode)
+	}
+
+	resp2, err := http.Get(ts.URL + "/query/ORD001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp2.Body.Close()
+	if resp2.StatusCode != http.StatusOK {
+		t.Errorf("query status = %d, want 200", resp2.StatusCode)
+	}
+}
+
+func TestServerLifecycle(t *testing.T) {
+	addr := freeAddr(t)
+	s := NewServer(addr, &apiMockProvider{})
+
+	// SetHandler 替换 handler
+	mux := http.NewServeMux()
+	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("pong"))
+	})
+	s.SetHandler(mux)
+
+	done := make(chan error, 1)
+	go func() { done <- s.Start() }()
+
+	// 轮询等待服务就绪
+	var resp *http.Response
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, _ = http.Get("http://" + addr + "/ping")
+		if resp != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if resp == nil {
+		t.Fatal("server did not start")
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("ping status = %d, want 200", resp.StatusCode)
+	}
+
+	if err := s.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if err := <-done; !errors.Is(err, http.ErrServerClosed) {
+		t.Errorf("Start returned %v, want ErrServerClosed", err)
+	}
+}
+
+func TestServer_Shutdown(t *testing.T) {
+	addr := freeAddr(t)
+	s := NewServer(addr, &apiMockProvider{})
+	go s.Start()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if resp, _ := http.Get("http://" + addr + "/pay"); resp != nil {
+			resp.Body.Close()
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := s.Shutdown(ctx); err != nil {
+		t.Errorf("Shutdown: %v", err)
+	}
+}
+
+// freeAddr 获取一个空闲的本地地址。
+func freeAddr(t *testing.T) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	addr := ln.Addr().String()
+	ln.Close()
+	return addr
+}
+
+func TestWriteJSON_EncodeError(t *testing.T) {
+	w := httptest.NewRecorder()
+	writeJSON(w, http.StatusOK, make(chan int)) // 不可序列化，走错误分支
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", w.Code)
 	}
 }
 

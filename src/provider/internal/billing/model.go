@@ -2,9 +2,9 @@ package billing
 
 // 抵扣类型。
 const (
-	KindCoupon   = "coupon"   // 优惠券抵扣
-	KindVoucher  = "voucher"  // 代金券抵现
-	KindBalance  = "balance"  // 余额支付
+	KindCoupon  = "coupon"  // 优惠券抵扣
+	KindVoucher = "voucher" // 代金券抵现
+	KindBalance = "balance" // 余额支付
 )
 
 // CouponInput 参与结算计算的优惠券（billing 不依赖 coupon 模块，使用中立输入）。
@@ -32,7 +32,7 @@ type Deduction struct {
 // BillingRule 计费规则：抵扣顺序配置（v0.1.0 提供默认顺序，规则引擎后置）。
 type BillingRule struct {
 	ID        int64  `gorm:"primaryKey" json:"id"`
-	Priority  int    `json:"priority"`             // 执行顺序
-	Kind      string `gorm:"size:16" json:"kind"`  // coupon / voucher / balance
+	Priority  int    `json:"priority"`                             // 执行顺序
+	Kind      string `gorm:"size:16" json:"kind"`                  // coupon / voucher / balance
 	Condition string `gorm:"type:text" json:"condition,omitempty"` // JSON 条件
 }

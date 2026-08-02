@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -41,16 +42,32 @@ func main() {
 	channelName := flag.String("channel", "", "支付渠道：wechat 或 alipay（可为空，仅启动账本 API）")
 	flag.Parse()
 
-	db, err := openDB()
-	if err != nil {
-		log.Fatalf("open db: %v", err)
-	}
-
-	mux := buildMux(db, *channelName)
-	srv := &http.Server{Addr: *addr, Handler: middleware.Logging(mux)}
-
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+
+	if err := run(ctx, *addr, *channelName); err != nil {
+		log.Fatalf("server: %v", err)
+	}
+}
+
+// run 打开数据库、组装路由并启动服务（含优雅关闭）。
+func run(ctx context.Context, addr, channelName string) error {
+	db, err := openDB()
+	if err != nil {
+		return err
+	}
+	mux, err := buildMux(db, channelName)
+	if err != nil {
+		return err
+	}
+
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	log.Printf("API server listening on %s", ln.Addr())
+
+	srv := &http.Server{Handler: middleware.Logging(mux)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -59,11 +76,10 @@ func main() {
 			log.Printf("shutdown: %v", err)
 		}
 	}()
-
-	log.Printf("API server listening on %s", *addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("server: %v", err)
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		return err
 	}
+	return nil
 }
 
 // openDB 按配置（DB_DRIVER / DATABASE_URL）打开数据库并迁移全部模型。
@@ -97,7 +113,7 @@ func openDB() (*gorm.DB, error) {
 }
 
 // buildMux 组装全部模块并返回路由。
-func buildMux(db *gorm.DB, channelName string) *http.ServeMux {
+func buildMux(db *gorm.DB, channelName string) (*http.ServeMux, error) {
 	// 账本核心
 	txSvc := transaction.NewService(transactiongorm.NewTransactionRepo())
 	accSvc := account.NewService(db, accountgorm.NewAccountRepo(), txSvc)
@@ -118,11 +134,11 @@ func buildMux(db *gorm.DB, channelName string) *http.ServeMux {
 	if channelName != "" {
 		p, err := newProvider(channelName)
 		if err != nil {
-			log.Fatalf("init provider: %v", err)
+			return nil, fmt.Errorf("init provider: %w", err)
 		}
 		channel.RegisterRoutes(mux, p)
 	}
-	return mux
+	return mux, nil
 }
 
 // newProvider 根据渠道名从环境变量加载配置并创建 Provider。

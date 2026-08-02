@@ -264,10 +264,10 @@ func TestSum_DBError(t *testing.T) {
 
 func TestSignedAmountAndAffectsBalance(t *testing.T) {
 	cases := []struct {
-		typ      string
-		amount   int64
-		signed   int64
-		affects  bool
+		typ     string
+		amount  int64
+		signed  int64
+		affects bool
 	}{
 		{transaction.TypeRecharge, 100, 100, true},
 		{transaction.TypeConsume, 30, -30, true},

@@ -31,21 +31,44 @@ type SettleRequest struct {
 	Amount     int64  // 订单金额（分）
 }
 
+// 依赖接口（结算编排所需的最小表面，便于测试注入）。
+// 具体实现由各模块 Service 提供。
+type (
+	accountSvc interface {
+		Lock(ctx context.Context, db *gorm.DB, id string) (*account.Account, error)
+		Save(ctx context.Context, db *gorm.DB, a *account.Account) error
+	}
+	couponSvc interface {
+		Available(ctx context.Context, db *gorm.DB, accountID, scope, productID string) ([]coupon.Coupon, error)
+		Use(ctx context.Context, db *gorm.DB, id int64, orderID string) error
+	}
+	voucherSvc interface {
+		Available(ctx context.Context, db *gorm.DB, accountID, scope, productID string) ([]voucher.Voucher, error)
+		Use(ctx context.Context, db *gorm.DB, id int64, orderID string) error
+	}
+	billingSvc interface {
+		Calculate(amount int64, coupons []billing.CouponInput, vouchers []billing.VoucherInput, balance int64) ([]billing.Deduction, error)
+	}
+	transactionSvc interface {
+		Append(ctx context.Context, db *gorm.DB, t *transaction.Transaction) error
+	}
+)
+
 // Service 订单与结算服务：结算编排者，单事务协调 billing/coupon/voucher/account/transaction。
 type Service struct {
 	db         *gorm.DB
 	repo       Repository
-	accountSvc *account.Service
-	couponSvc  *coupon.Service
-	voucherSvc *voucher.Service
-	billingSvc *billing.Service
-	txSvc      *transaction.Service
+	accountSvc accountSvc
+	couponSvc  couponSvc
+	voucherSvc voucherSvc
+	billingSvc billingSvc
+	txSvc      transactionSvc
 }
 
 // NewService 创建订单服务。
-func NewService(db *gorm.DB, repo Repository, accountSvc *account.Service,
-	couponSvc *coupon.Service, voucherSvc *voucher.Service,
-	billingSvc *billing.Service, txSvc *transaction.Service) *Service {
+func NewService(db *gorm.DB, repo Repository, accountSvc accountSvc,
+	couponSvc couponSvc, voucherSvc voucherSvc,
+	billingSvc billingSvc, txSvc transactionSvc) *Service {
 	return &Service{
 		db: db, repo: repo,
 		accountSvc: accountSvc, couponSvc: couponSvc, voucherSvc: voucherSvc,
@@ -131,7 +154,7 @@ func (s *Service) Settle(ctx context.Context, req *SettleRequest) (*Order, error
 				Type:           transaction.TypeRedeem,
 				Amount:         d.Amount,
 				OrderID:        req.OrderID,
-				IdempotencyKey: fmt.Sprintf("settle:%s:redeem:%d", req.OrderID, d.RefID),
+				IdempotencyKey: fmt.Sprintf("settle:%s:redeem:%s:%d", req.OrderID, d.Kind, d.RefID),
 			}); err != nil {
 				return err
 			}

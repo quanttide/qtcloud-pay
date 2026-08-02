@@ -50,7 +50,7 @@ func (s *Service) Issue(ctx context.Context, req *IssueRequest) error {
 	if err := validateIssue(req); err != nil {
 		return err
 	}
-	key := "issue:" + req.BatchNo
+	key := "issue:voucher:" + req.BatchNo
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {

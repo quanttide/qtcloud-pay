@@ -43,9 +43,11 @@ db.AutoMigrate(
 
 | 场景 | 幂等键 | 唯一约束位置 |
 |------|--------|--------------|
-| 充值 | 打款凭证号 `voucher_no` | `transaction.idempotency_key` |
-| 发券 | 发放批次号 `batch_no` | `coupon.batch_no` / `voucher.batch_no` |
-| 结算 | 商户订单号 `order_id` | `order.id` |
+| 充值 | 打款凭证号 `voucher_no` | `transaction.idempotency_key`（`recharge:{voucher_no}`） |
+| 发券 | 发放批次号 `batch_no` | 发券交易幂等键 `transaction.idempotency_key`（`issue:coupon:{batch_no}` / `issue:voucher:{batch_no}`）；`batch_no` 本身为普通索引，作防御性检查 |
+| 结算 | 商户订单号 `order_id` | `order.id`；账本消费/核销交易 `settle:{order_id}[:redeem:{kind}:{ref}]` |
+
+说明：发券批次号按类型命名空间区分（优惠券与代金券各自自增，批次号可能相同），幂等由发券交易的全局唯一幂等键保证；`batch_no` 不做唯一约束，因为同一批次含多张券。
 
 ### 金额与折扣计算
 

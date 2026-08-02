@@ -32,6 +32,13 @@ provider/
 │   └── server/
 │       └── main.go              ← 入口：加载配置，组装依赖，启动服务
 ├── internal/                    ← 私有应用和库代码，外部不可导入
+│   ├── account/                 ← 账户与余额（充值登记、余额查询）
+│   ├── transaction/             ← 交易账本（账本写入唯一入口、流水）
+│   ├── coupon/                  ← 优惠券（折扣/满减，发放与核销）
+│   ├── voucher/                 ← 代金券（面值抵现，发放与抵现）
+│   ├── billing/                 ← 计费规则（抵扣顺序与计算）
+│   ├── order/                   ← 订单与结算（单事务编排）
+│   ├── reconciliation/          ← 对账与可查（一致性校验、账单）
 │   ├── channel/                 ← 支付渠道模块
 │   │   ├── transport.go         ← HTTP handler（参数绑定、协议转换）
 │   │   ├── service.go           ← Provider 接口
@@ -53,6 +60,8 @@ provider/
 ├── Makefile
 └── README.md
 ```
+
+各账本模块均按 `transport / service / repository / model + gorm/` 组织，repository 用 GORM 实现（开发 SQLite / 生产 PostgreSQL 方言切换），详见 [docs](docs/index.md)。
 
 ## 使用
 
@@ -85,11 +94,33 @@ make build && ./bin/provider-server -addr :8080 -channel wechat
 
 ### API
 
+#### 账本核心（M1–M4）
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/accounts` | 创建账户 |
+| POST | `/accounts/{id}/recharges` | 充值登记（对公打款入账，凭证号幂等） |
+| GET | `/accounts/{id}` | 账户与余额 |
+| GET | `/accounts/{id}/transactions` | 交易流水 |
+| POST | `/accounts/{id}/coupons` | 发放优惠券（批量，批次号幂等） |
+| GET | `/accounts/{id}/coupons` | 查询优惠券 |
+| POST | `/accounts/{id}/vouchers` | 发放代金券（批量，批次号幂等） |
+| GET | `/accounts/{id}/vouchers` | 查询代金券 |
+| POST | `/orders` | 下单并结算（订单号幂等） |
+| GET | `/orders/{id}` | 订单与结算明细 |
+| GET | `/accounts/{id}/statement` | 账单导出 |
+| GET | `/reconcile/consistency` | 余额-交易一致性校验 |
+| POST | `/reconcile/bank` | 对公打款核对（银行流水 CSV） |
+
+#### 支付渠道
+
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | POST | `/pay` | 发起支付，返回支付链接/前端调起参数 |
 | GET | `/query/{order_id}` | 查询订单状态 |
 | POST | `/refund` | 申请退款 |
+
+金额单位：账本核心接口的 `amount` 均为整数分。
 
 ## 已实现能力
 
