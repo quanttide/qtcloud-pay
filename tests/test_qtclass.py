@@ -1,6 +1,6 @@
-"""场景 A：量潮课堂（高校学生购买课程，几十~几百元）——TC-A01..A09。
+"""场景 A：量潮课堂（高校学生付费学习，几十~几百元）——TC-A01..A09。
 
-对齐 tests.md 业务场景 A：开户打款 → 充值入账 → 领课程券/代金券 → 买单节课或系列课 → 账本核对。
+对齐 tests.md 业务场景 A：付费（对公打款）→ 记入额度 → 按学习扣费 → 按交付发代金券 → 账本核对。
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from tests.api import ApiClient, future_expiry, unique
 
 
 def test_a01_recharge_idempotent(api: ApiClient) -> None:
-    """TC-A01 开户与充值：重复提交同凭证号不重复入账（不重）。"""
+    """TC-A01 开户与付费记额度：重复提交同凭证号不重复入账（不重）。"""
     acc = api.create_account(unique("stu"))
     voucher_no = unique("GT-001")
     api.recharge(acc, 20000, voucher_no)
@@ -27,7 +27,7 @@ def test_a01_recharge_idempotent(api: ApiClient) -> None:
 
 
 def test_a02_issue_incentives(api: ApiClient) -> None:
-    """TC-A02 发放课程激励券：批量 + 幂等 + 发券交易入账（不丢、不重）。"""
+    """TC-A02 按交付发放激励：批量 + 幂等 + 发券交易入账（不丢、不重）。"""
     acc = api.create_account(unique("stu"))
     batch_no = unique("GT-B-001")
     api.issue_coupon(
@@ -48,17 +48,30 @@ def test_a02_issue_incentives(api: ApiClient) -> None:
     assert api.count_type(acc, "issue") == 2
 
 
-def test_a03_balance_only(api: ApiClient) -> None:
-    """TC-A03 纯余额买单节课。"""
+def test_a03_learning_deduction(api: ApiClient) -> None:
+    """TC-A03 按学习扣费：付费记额度后，费用随学习进度逐次扣除。"""
     acc = api.create_account(unique("stu"))
-    api.recharge(acc, 20000, unique("GT-001"))
+    api.recharge(acc, 20000, unique("GT-001"))  # 付费 20000 记入额度
 
-    order = api.settle(
+    # 学第一节课扣 10000
+    o1 = api.settle(
         order_id=unique("O-GT-1"), account_id=acc, scope="course", amount=10000
     )
-    api.assert_detail(order, [("balance", 10000)])
+    api.assert_detail(o1, [("balance", 10000)])
     api.assert_ledger(acc, 10000)
-    assert api.count_type(acc, "consume") == 1
+
+    # 学第二节课再扣 10000
+    o2 = api.settle(
+        order_id=unique("O-GT-2"), account_id=acc, scope="course", amount=10000
+    )
+    api.assert_detail(o2, [("balance", 10000)])
+    api.assert_ledger(acc, 0)
+
+    # 两笔消费交易 running balance 连续（10000 → 0），余额 = 交易求和
+    # 接口按 id 倒序返回（最新在前），断言前按 id 翻转为时间正序
+    txs = [tx for tx in api.get_transactions(acc) if tx["type"] == "consume"]
+    txs.sort(key=lambda tx: tx["id"])
+    assert [tx["balance_after"] for tx in txs] == [10000, 0], f"txs = {txs}"
 
 
 def test_a04_full_reduction_threshold(api: ApiClient) -> None:
@@ -146,7 +159,7 @@ def test_a07_insufficient_balance_rollback(api: ApiClient) -> None:
 
 
 def test_a08_expired_coupon(api: ApiClient) -> None:
-    """TC-A08 过期课程券不可用：明细无券项，惰性流转为 expired。"""
+    """TC-A08 过期课程券不可用：扣费明细无券项，惰性流转为 expired。"""
     acc = api.create_account(unique("stu"))
     api.recharge(acc, 10000, unique("GT-001"))
     # 短有效期券，等待其过期（Python 侧无数据库句柄，无法回拨时间）
@@ -166,7 +179,7 @@ def test_a08_expired_coupon(api: ApiClient) -> None:
 
 
 def test_a09_order_idempotent(api: ApiClient) -> None:
-    """TC-A09 订单幂等：重复提交返回同一订单，余额只扣一次、券只核销一次（不重）。"""
+    """TC-A09 扣费幂等：重复提交返回同一订单，余额只扣一次、券只核销一次（不重）。"""
     acc = api.create_account(unique("stu"))
     api.recharge(acc, 20000, unique("GT-001"))
     api.issue_coupon(

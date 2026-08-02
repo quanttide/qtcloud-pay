@@ -204,7 +204,7 @@ func TestX06_FullClosedLoop(t *testing.T) {
 		t.Errorf("/pay status = %d, want 404", got)
 	}
 
-	// 课堂旅程：打款 → 充钱 → 发券 → 买课
+	// 课堂旅程：打款 → 记额度 → 发券 → 学习扣费
 	stu := e.createAccount("stu-1")
 	e.recharge(stu, 20000, "GT-001")
 	e.issueCoupon(stu, map[string]any{

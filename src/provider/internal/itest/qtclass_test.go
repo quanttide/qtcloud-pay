@@ -2,6 +2,7 @@ package itest
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 )
@@ -11,7 +12,7 @@ func futureExpiry() string {
 	return time.Now().Add(24 * time.Hour).Format(time.RFC3339)
 }
 
-// TC-A01 开户与充值：余额正确；重复提交同凭证号不重复入账（不重）。
+// TC-A01 开户与付费记额度：余额正确；重复提交同凭证号不重复入账（不重）。
 func TestA01_RechargeIdempotent(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("stu-1")
@@ -31,7 +32,7 @@ func TestA01_RechargeIdempotent(t *testing.T) {
 	}
 }
 
-// TC-A02 发放课程激励券：批量 + 幂等 + 发券交易入账（不丢、不重）。
+// TC-A02 按交付发放激励：批量 + 幂等 + 发券交易入账（不丢、不重）。
 func TestA02_IssueIncentives(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("stu-1")
@@ -70,20 +71,40 @@ func TestA02_IssueIncentives(t *testing.T) {
 	}
 }
 
-// TC-A03 纯余额买单节课。
-func TestA03_BalanceOnly(t *testing.T) {
+// TC-A03 按学习扣费：付费记额度后，费用随学习进度逐次扣除（多次小额）。
+func TestA03_LearningDeduction(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("stu-1")
-	e.recharge(acc, 20000, "GT-001")
+	e.recharge(acc, 20000, "GT-001") // 付费 20000 记入额度
 
-	o := e.settle(map[string]any{
+	// 学第一节课扣 10000
+	o1 := e.settle(map[string]any{
 		"order_id": "O-GT-1", "customer_id": "stu-1", "account_id": acc,
 		"product_id": "course-1", "scope": "course", "amount": 10000,
 	})
-	e.assertDetail(o, []deduction{{Kind: "balance", Amount: 10000}})
+	e.assertDetail(o1, []deduction{{Kind: "balance", Amount: 10000}})
 	e.assertLedger(acc, 10000)
-	if got := e.countType(acc, "consume"); got != 1 {
-		t.Errorf("consume txs = %d, want 1", got)
+
+	// 学第二节课再扣 10000
+	o2 := e.settle(map[string]any{
+		"order_id": "O-GT-2", "customer_id": "stu-1", "account_id": acc,
+		"product_id": "course-1", "scope": "course", "amount": 10000,
+	})
+	e.assertDetail(o2, []deduction{{Kind: "balance", Amount: 10000}})
+	e.assertLedger(acc, 0)
+
+	// 两笔消费交易 running balance 连续（10000 → 0），余额 = 交易求和
+	// 接口按 id DESC 返回（最新在前），断言前翻转为时间正序
+	txs := e.transactions(acc)
+	var after []int64
+	for _, tx := range txs {
+		if tx["type"] == "consume" {
+			after = append(after, int64(tx["balance_after"].(float64)))
+		}
+	}
+	slices.Reverse(after)
+	if len(after) != 2 || after[0] != 10000 || after[1] != 0 {
+		t.Errorf("consume balance_after = %v, want [10000 0]", after)
 	}
 }
 
@@ -233,7 +254,7 @@ func TestA08_ExpiredCoupon(t *testing.T) {
 	}
 }
 
-// TC-A09 订单幂等：重复提交返回同一订单，余额只扣一次、券只核销一次（不重）。
+// TC-A09 扣费幂等：重复提交返回同一订单，余额只扣一次、券只核销一次（不重）。
 func TestA09_OrderIdempotent(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("stu-1")

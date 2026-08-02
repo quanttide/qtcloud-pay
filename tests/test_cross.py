@@ -175,7 +175,7 @@ def test_x06_full_closed_loop(api: ApiClient) -> None:
     status, _ = api.get("/pay")
     assert status == 404, f"/pay status = {status}, want 404"
 
-    # 课堂旅程：打款 → 充钱 → 发券 → 买课
+    # 课堂旅程：打款 → 记额度 → 发券 → 学习扣费
     stu = api.create_account(unique("stu"))
     api.recharge(stu, 20000, unique("GT-001"))
     api.issue_coupon(
