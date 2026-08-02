@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [0.1.0-alpha.1] - 2026-08-03
 
 ### Added
 - 新增 `cmd/server` 入口：从环境变量加载配置、组装依赖、启动服务，支持优雅关闭
