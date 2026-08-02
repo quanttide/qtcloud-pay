@@ -1,12 +1,14 @@
-# 部署 provider：推送 tag（provider/*，如 provider/v0.1.0）时，通过 Terraform apply 部署到阿里云。
+# 部署 provider：推送 tag（provider/*，如 provider/v0.1.0）时，
+# 先构建发布 Docker 镜像，再通过 Terraform apply 部署到阿里云。
 #
 # 所需 GitHub secrets（org 级）：
 #   - ALICLOUD_ACCESS_KEY / ALICLOUD_SECRET_KEY：RAM 用户 AccessKey（PowerUserAccess + AliyunRAMFullAccess）
 #   - DB_PASSWORD：RDS 数据库密码（注入 TF_VAR_db_password）
+#   - DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD：Docker Hub 凭证（构建发布镜像）
 #
 # 前置条件：
 #   - OSS 状态桶已存在（env.TF_STATE_BUCKET）；PowerUserAccess 已含 OSS 权限
-#   - 容器镜像已发布（env.TF_VAR_image）；镜像构建发布为后续 TODO（可在本 workflow 前追加 job）
+#   - Docker Hub 账号对 <用户名>/qtcloud-pay 仓库有推送权限
 
 name: Deploy Provider
 
@@ -23,14 +25,58 @@ concurrency:
 env:
   TF_VAR_region: cn-hangzhou
   TF_VAR_environment: dev
-  TF_VAR_image: quanttide/qtcloud-pay:latest
   TF_STATE_BUCKET: quanttide-terraform-state
   TF_STATE_KEY: qtcloud-pay/terraform.tfstate
 
 jobs:
+  build-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # tag provider/v0.1.0 → 镜像 tag v0.1.0；手动触发 → latest
+      - name: Resolve Image Name
+        id: image
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME#provider/}"
+          else
+            TAG="latest"
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "name=${DOCKERHUB_USERNAME}/qtcloud-pay:${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: src/provider
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/qtcloud-pay:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   deploy:
     name: Terraform Apply
     runs-on: ubuntu-latest
+    needs: build-image
     timeout-minutes: 40 # RDS 创建耗时较长
     permissions:
       contents: read
@@ -39,6 +85,7 @@ jobs:
       ALICLOUD_ACCESS_KEY: ${{ secrets.ALICLOUD_ACCESS_KEY }}
       ALICLOUD_SECRET_KEY: ${{ secrets.ALICLOUD_SECRET_KEY }}
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_image: ${{ needs.build-image.outputs.image }}
 
     steps:
       - name: Checkout
