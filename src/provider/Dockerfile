@@ -7,6 +7,12 @@ FROM golang:1.26-alpine AS build
 RUN apk add --no-cache gcc musl-dev
 
 WORKDIR /src
+
+# 依赖代理：默认国内可达的 goproxy.cn（proxy.golang.org 在部分网络环境不可达）
+# 覆盖：docker build --build-arg GOPROXY=https://proxy.golang.org,direct .
+ARG GOPROXY=https://goproxy.cn,direct
+ENV GOPROXY=${GOPROXY}
+
 COPY go.mod go.sum ./
 RUN go mod download
 
