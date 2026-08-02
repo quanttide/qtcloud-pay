@@ -1,6 +1,20 @@
-# 服务端 v0.1.0 模块划分
+# 服务端 v0.1.0 文档
 
-依据[服务端 v0.1.0 路线图](../../../../data/roadmap/provider.md)与[领域模型](../../../../data/insight/model.md)划分，落地于 `src/provider` Go 模块：在现有 `channel` 渠道模块旁新增账本核心各模块，`cmd/server` 统一组装。
+量潮支付服务端 v0.1.0（账本核心）的设计文档集。落地于 `src/provider` Go 模块：在现有 `channel` 渠道模块旁新增账本核心各模块，`cmd/server` 统一组装。
+
+## 文档导航
+
+| 文档 | 内容 | 里程碑 |
+|------|------|--------|
+| [conventions](conventions.md) 设计约束与实现约定 | 关键设计约束、存储/事务/幂等/金额约定 | — |
+| [account](account.md) 账户与余额 | 充值登记、余额查询 | M1 |
+| [transaction](transaction.md) 交易账本 | 账本写入唯一入口、流水查询 | M1 |
+| [coupon](coupon.md) 优惠券 | 发放、过期流转、核销 | M2 |
+| [voucher](voucher.md) 代金券 | 发放、过期流转、抵现 | M2 |
+| [billing](billing.md) 计费规则 | 抵扣顺序与计算 | M3 |
+| [order](order.md) 订单与结算 | 下单与结算编排 | M3 |
+| [reconciliation](reconciliation.md) 对账与可查 | 一致性校验、对公核对、账单 | M4 |
+| [channel](channel.md) 支付渠道 | 微信/支付宝（现有） | M5 |
 
 ## 模块总览
 
@@ -38,14 +52,6 @@ flowchart TD
 - `billing` 是纯计算模块（给定订单金额与可用券/余额，输出抵扣明细），不依赖任何存储
 - `order` 依赖最多，是结算的编排者：应用计费规则 → 写消费/核销交易 → 更新余额与券状态
 - `channel` 目前不依赖账本模块，v0.2.0 接入时只新增「回调 → 自动入账」适配
-
-## 关键设计约束
-
-1. **账本写入唯一入口**：所有账本变更（充值/发券/消费/核销）必须经 `transaction` 模块写入，配合幂等键与唯一约束，保证不丢、不重、可查
-2. **同事务更新**：余额、券状态与交易在同一数据库事务内更新（不错）；各模块 repository 共享同一 `*gorm.DB` 连接，跨模块写（结算）由 `order` 服务在单个事务内协调
-3. **金额整数分**：全链路整数分存储，不做浮点金额
-4. **渠道独立演进**：`channel` 不依赖账本模块，账本跑通前不扩展渠道能力
-5. **存储双引擎**：开发环境 SQLite、生产环境 PostgreSQL，由 GORM（类似 SQLAlchemy 的 ORM）统一调度——repository 只写一套 GORM 实现，方言（sqlite/postgres）由 `cmd/server` 按配置（`DB_DRIVER` / `DATABASE_URL`）在启动时选择；迁移用 GORM AutoMigrate，生产环境后续引入版本化迁移
 
 ## 目录结构
 
@@ -105,67 +111,11 @@ src/provider/
 │   └── middleware/              ← 请求日志（现有）
 │       └── logging.go
 ├── pkg/                         ← 预留：公共库（金额分、幂等键生成）
-├── docs/                        ← 模块划分等设计文档
+├── docs/                        ← 设计文档（本目录）
 ├── go.mod
 ├── go.sum
 └── Makefile
 ```
-
-## 各模块职责
-
-### account 账户与余额（M1）
-
-- 模型：Account（客户虚拟钱包）、Balance（交易投影）
-- 职责：创建账户；充值登记（对公打款入账，带幂等键）；余额查询
-- 依赖：`transaction`（充值 → 写入充值交易，余额与交易同事务）
-- API：`POST /accounts`、`POST /accounts/{id}/recharges`、`GET /accounts/{id}`
-
-### transaction 交易账本（M1）
-
-- 模型：Transaction（充值/消费/发券/核销，不可变记录）
-- 职责：账本写入唯一入口（幂等键 + 唯一约束，不重）；流水查询（可查）
-- 依赖：无（最底层）
-- API：`GET /accounts/{id}/transactions`（路由沿用账户资源，由本模块服务实现）
-
-### coupon 优惠券（M2）
-
-- 模型：Coupon（折扣券 `rate` / 满减券 `threshold`+`amount`；`scope`、`expiresAt`、`status`）
-- 职责：发放（幂等，生成发券交易）；过期流转（已发放 → 已过期）；核销由结算触发
-- 依赖：`transaction`
-- API：`POST /accounts/{id}/coupons`、`GET /accounts/{id}/coupons`
-
-### voucher 代金券（M2）
-
-- 模型：Voucher（固定面值 `amount`；`scope`、`expiresAt`、`status`）
-- 职责：发放（幂等，生成发券交易）；过期流转；抵现由结算触发
-- 依赖：`transaction`
-- API：`POST /accounts/{id}/vouchers`、`GET /accounts/{id}/vouchers`
-
-### order 订单与结算（M3）
-
-- 模型：Order（客户购买付费服务的交易请求）
-- 职责：下单并结算——调用 `billing` 确定抵扣 → 写消费/核销交易 → 更新余额与券状态，全程单事务
-- 依赖：`billing`、`coupon`、`voucher`、`account`、`transaction`
-- API：`POST /orders`（下单并结算）、`GET /orders/{id}`（订单与结算明细）
-
-### billing 计费规则（M3）
-
-- 模型：BillingRule（`priority` / `condition`）
-- 职责：默认抵扣顺序「优惠券 → 代金券 → 余额」的配置与抵扣计算；顺序由 `priority` 配置，不改代码可调
-- 依赖：无（纯计算；给定订单金额与可用券/余额，输出逐项抵扣明细）
-- API：无独立端点，供 `order` 结算调用
-
-### reconciliation 对账与可查（M4）
-
-- 职责：一致性校验（余额 = 交易按方向求和）；对公打款核对（充值登记 vs 银行流水 CSV）；账单导出
-- 依赖：`account`、`transaction`
-- API：`GET /accounts/{id}/statement`
-
-### channel 支付渠道（现有，M5）
-
-- 微信 JSAPI（公众号/小程序）、支付宝网页支付（PC）；下单/查询/退款/通知解析
-- v0.2.0：支付回调（`ParseNotify` / `VerifyNotify`）→ 自动写入充值交易，替代手动登记
-- 保持独立，v0.1.0 不做扩展，接入时逐步生产验证
 
 ## 与里程碑的对应
 
@@ -176,3 +126,11 @@ src/provider/
 | M3 订单与计费规则 | `order` + `billing` |
 | M4 对账与可查 | `reconciliation` |
 | M5 支付渠道对接（v0.2.0） | `channel`（现有）→ `transaction` 自动入账 |
+
+## 扩展新功能
+
+新增功能 = 新增模块：
+
+1. 在 `internal/` 下创建模块目录（transport/service/repository/model + gorm/）
+2. 编写 `docs/<module>.md`，登记到「文档导航」与「模块总览」表
+3. 按依赖关系图接线——账本写入一律经 `transaction` 模块
