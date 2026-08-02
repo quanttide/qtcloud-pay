@@ -47,6 +47,7 @@ provider/
 │   │       └── alipay_test.go
 │   └── middleware/              ← 内部中间件（请求日志）
 │       └── logging.go
+├── docs/                        ← 设计文档（模块划分）
 ├── go.mod
 ├── go.sum
 ├── Makefile
