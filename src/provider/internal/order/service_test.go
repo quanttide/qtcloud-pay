@@ -111,7 +111,7 @@ func TestSettle_FullFlow(t *testing.T) {
 	if ord.Status != order.StatusSettled || ord.SettledAt == nil {
 		t.Errorf("order = %+v", ord)
 	}
-	// 结算明细：满减 20000 → 折扣 72000 → 代金券 5000 → 余额 3000
+	// 结算明细：满减 20000 → 折扣省 8000（9 折）→ 代金券 5000 → 余额 67000
 	var plan []billing.Deduction
 	if err := json.Unmarshal(ord.SettleDetail, &plan); err != nil {
 		t.Fatal(err)
@@ -121,9 +121,9 @@ func TestSettle_FullFlow(t *testing.T) {
 	}
 	want := []billing.Deduction{
 		{Kind: billing.KindCoupon, RefID: plan[0].RefID, Amount: 20000},
-		{Kind: billing.KindCoupon, RefID: plan[1].RefID, Amount: 72000},
+		{Kind: billing.KindCoupon, RefID: plan[1].RefID, Amount: 8000},
 		{Kind: billing.KindVoucher, RefID: plan[2].RefID, Amount: 5000},
-		{Kind: billing.KindBalance, Amount: 3000},
+		{Kind: billing.KindBalance, Amount: 67000},
 	}
 	for i, w := range want {
 		if plan[i].Kind != w.Kind || plan[i].Amount != w.Amount {
@@ -131,10 +131,10 @@ func TestSettle_FullFlow(t *testing.T) {
 		}
 	}
 
-	// 余额：100000 − 3000
+	// 余额：100000 − 67000
 	acc, _ := e.accountSvc.Get(ctx, accID)
-	if acc.Balance != 97000 {
-		t.Errorf("balance = %d, want 97000", acc.Balance)
+	if acc.Balance != 33000 {
+		t.Errorf("balance = %d, want 33000", acc.Balance)
 	}
 
 	// 账本：1 充值 + 3 发券 + 1 消费 + 3 核销
@@ -152,7 +152,7 @@ func TestSettle_FullFlow(t *testing.T) {
 			redeems++
 		}
 	}
-	if consume == nil || consume.Amount != 3000 || consume.OrderID != "ORD-1" {
+	if consume == nil || consume.Amount != 67000 || consume.OrderID != "ORD-1" {
 		t.Errorf("consume = %+v", consume)
 	}
 	if redeems != 3 {
@@ -221,8 +221,8 @@ func TestSettle_Idempotent(t *testing.T) {
 	}
 	// 不重复扣款、不重复核销
 	acc, _ := e.accountSvc.Get(ctx, accID)
-	if acc.Balance != 97000 {
-		t.Errorf("balance = %d, want 97000", acc.Balance)
+	if acc.Balance != 33000 {
+		t.Errorf("balance = %d, want 33000", acc.Balance)
 	}
 	txs, _ := e.txSvc.ListAll(ctx, e.db, accID)
 	if len(txs) != 8 { // 1 充值 + 3 发券 + 1 消费 + 3 核销

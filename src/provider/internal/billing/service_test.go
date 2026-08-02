@@ -96,7 +96,7 @@ func TestCalculate(t *testing.T) {
 		{
 			name: "满减加折扣", amount: 10000, balance: 100000,
 			coupons: []billing.CouponInput{fullReduction(1, 8000, 2000), discount(2, 90)},
-			// 满减 2000 → 剩余 8000 → 折扣 7200 → 余额 800
+			// 满减 2000 → 剩余 8000 → 折扣省 800（9 折）→ 余额 7200
 			wantSum: 10000, wantKinds: map[string]int{"coupon": 2, "balance": 1},
 		},
 		{
@@ -173,6 +173,35 @@ func TestCalculate_Errors(t *testing.T) {
 	}
 }
 
+// TestCalculate_PickBestCoupon 多张同类券时选力度最大：满减选减额最大、折扣选 rate 最低。
+func TestCalculate_PickBestCoupon(t *testing.T) {
+	svc := newService(t)
+
+	// 满减：满 8000 减 1000 / 满 9000 减 3000 → 选减额最大的 3000
+	plan, err := svc.Calculate(10000, []billing.CouponInput{
+		fullReduction(1, 8000, 1000),
+		fullReduction(2, 9000, 3000),
+	}, nil, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 2 || plan[0].RefID != 2 || plan[0].Amount != 3000 {
+		t.Errorf("plan = %+v, want 满减券 ID2 减 3000", plan)
+	}
+
+	// 折扣：rate 90（9 折，省 10%）与 rate 80（8 折，省 20%）→ 选 8 折（力度最大，省 2000）
+	plan, err = svc.Calculate(10000, []billing.CouponInput{
+		discount(1, 90),
+		discount(2, 80),
+	}, nil, 100000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan) != 2 || plan[0].RefID != 2 || plan[0].Amount != 2000 {
+		t.Errorf("plan = %+v, want 折扣券 ID2（rate 80）省 2000", plan)
+	}
+}
+
 func TestCalculate_InvalidCoupons(t *testing.T) {
 	svc := newService(t)
 
@@ -189,13 +218,13 @@ func TestCalculate_InvalidCoupons(t *testing.T) {
 		t.Errorf("plan = %+v, want only balance", plan)
 	}
 
-	// 折扣为 100%（全额抵扣）→ 生成抵扣项，无余额支付
+	// 折扣为 100%（9 折语义下省 0%）→ 不生成抵扣项，全额余额支付
 	plan, err = svc.Calculate(100, []billing.CouponInput{{ID: 1, Type: "discount", Rate: 100}}, nil, 100)
 	if err != nil {
 		t.Fatalf("Calculate: %v", err)
 	}
-	if len(plan) != 1 || plan[0].Kind != billing.KindCoupon || plan[0].Amount != 100 {
-		t.Errorf("plan = %+v, want coupon 100", plan)
+	if len(plan) != 1 || plan[0].Kind != billing.KindBalance || plan[0].Amount != 100 {
+		t.Errorf("plan = %+v, want balance 100", plan)
 	}
 }
 

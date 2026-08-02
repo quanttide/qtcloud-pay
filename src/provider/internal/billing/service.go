@@ -28,7 +28,7 @@ func NewService(repo Repository) *Service {
 //
 // v0.1.0 默认顺序（规则引擎后置）：
 //  1. 满减券：满足门槛（≤ 剩余应付）中力度最大的一张
-//  2. 折扣券：按 rate 对剩余应付打折（向下取整）
+//  2. 折扣券：按 rate 优惠（9 折 = rate 90 = 省 10%），向下取整
 //  3. 代金券：逐张抵扣 min(面值, 剩余应付)
 //  4. 余额：补足剩余
 //
@@ -46,9 +46,9 @@ func (s *Service) Calculate(amount int64, coupons []CouponInput, vouchers []Vouc
 		remain -= c.Amount
 	}
 
-	// 2. 折扣券（折扣力度最大的一张）
+	// 2. 折扣券（折扣力度最大的一张）：省 (100−rate)%
 	if c := bestDiscount(coupons); c != nil {
-		discount := remain * int64(c.Rate) / 100
+		discount := remain * int64(100-c.Rate) / 100
 		if discount > 0 {
 			plan = append(plan, Deduction{Kind: KindCoupon, RefID: c.ID, Amount: discount})
 			remain -= discount
@@ -94,13 +94,13 @@ func bestFullReduction(coupons []CouponInput, remain int64) *CouponInput {
 	return best
 }
 
-// bestDiscount 折扣力度最大（rate 最高）的一张折扣券；无则返回 nil。
+// bestDiscount 折扣力度最大（rate 最低）的一张折扣券；无则返回 nil。
 func bestDiscount(coupons []CouponInput) *CouponInput {
 	var best *CouponInput
 	for i := range coupons {
 		c := &coupons[i]
 		if c.Type == "discount" && c.Rate > 0 && c.Rate <= 100 {
-			if best == nil || c.Rate > best.Rate {
+			if best == nil || c.Rate < best.Rate {
 				best = c
 			}
 		}

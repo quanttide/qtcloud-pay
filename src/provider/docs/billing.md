@@ -39,7 +39,7 @@ func Calculate(amount int64, coupons []Coupon, vouchers []Voucher,
 v0.1.0 默认顺序（全部由 BillingRule.priority 表达，不改代码可调）：
 
 1. 满减券：满足门槛（≤ 剩余应付）中力度最大的一张
-2. 折扣券：按 rate 对剩余应付打折（向下取整）
+2. 折扣券：按 rate 优惠（9 折 = rate 90 = 省 10%），`应付 × (100 − rate) / 100` 向下取整
 3. 代金券：逐张抵扣 `min(面值, 剩余应付)`
 4. 余额：补足剩余
 

@@ -57,7 +57,7 @@ func (s *Service) Use(ctx context.Context, db *gorm.DB, id int64, orderID string
 
 - 状态机：`issued → used`（结算核销）/ `issued → expired`（超过有效期）
 - 过期惰性流转：不做定时任务，读取与结算时校验 `expiresAt`，发现过期时更新状态
-- 抵扣额计算（供 billing 使用）：折扣券 `应付 × rate / 100` 向下取整；满减券门槛内减 amount
+- 抵扣额计算（供 billing 使用）：折扣券 9 折 = rate 90 = 省 10%，`应付 × (100 − rate) / 100` 向下取整；满减券门槛内减 amount
 
 ## API
 
