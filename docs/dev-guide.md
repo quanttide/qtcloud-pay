@@ -12,14 +12,21 @@
 ```
 qtcloud-pay/
 ├── src/provider/          ← Go 支付提供者
-│   ├── alipay/            ← 支付宝支付实现（gopay 封装）
-│   ├── wechat/            ← 微信支付实现（gopay 封装）
-│   ├── api.go             ← HTTP 端点（handler + middleware）
-│   ├── api_test.go        ← API 集成测试（13 个用例）
-│   ├── provider.go        ← Provider 接口 + 数据模型
-│   ├── adapters.go        ← 微信/支付宝适配器（实现 Provider 接口）
-│   ├── provider_test.go   ← 适配器测试（mock transport）
-│   └── go.mod
+│   ├── cmd/
+│   │   └── server/
+│   │       └── main.go    ← 入口：加载配置，组装依赖，启动服务
+│   ├── internal/          ← 私有应用和库代码，外部不可导入
+│   │   ├── channel/       ← 支付渠道模块
+│   │   │   ├── transport.go   ← HTTP 端点
+│   │   │   ├── service.go     ← Provider 接口
+│   │   │   ├── adapters.go    ← 微信/支付宝适配器（实现 Provider 接口）
+│   │   │   ├── model.go       ← 请求/响应模型（DTO）
+│   │   │   ├── wechat/        ← 微信支付实现（gopay 封装）
+│   │   │   ├── alipay/        ← 支付宝支付实现（gopay 封装）
+│   │   │   └── *_test.go      ← 单元测试
+│   │   └── middleware/        ← 内部中间件（请求日志）
+│   │       └── logging.go
+│   └── Makefile
 ├── tests/                 ← Python 集成测试
 │   └── test_api.py        ← 调用 Go 测试的封装
 ├── docs/                  ← 文档
@@ -56,11 +63,12 @@ uv run pytest tests/ -v
 
 ### 添加新支付提供商
 
-1. 在 `src/provider/` 下创建子包（如 `unionpay/`）
+1. 在 `internal/channel/` 下创建子包（如 `unionpay/`）
 2. 实现子包的 Client，提供支付/查询/退款方法
 3. 在 `adapters.go` 中实现 `Provider` 接口
-4. 在 `provider_test.go` 中添加适配器测试（mock transport + mock server）
-5. 运行 `go test ./...` 确认全部通过
+4. 在 `service_test.go` 中添加适配器测试（mock transport + mock server）
+5. 在 `cmd/server/main.go` 的 `newProvider` 中添加渠道分支与环境变量
+6. 运行 `go test ./...` 确认全部通过
 
 ## Provider 接口
 
@@ -92,13 +100,7 @@ Go 模块的版本不由 `go.mod` 文件声明，而是由 **git tag** 决定。
 module github.com/quanttide/qtcloud-pay/src/provider
 ```
 
-其他项目通过 tag 引用特定版本：
-
-```bash
-go get github.com/quanttide/qtcloud-pay/src/provider@provider/v0.0.1
-```
-
-Go toolchain 自动根据 tag 解析版本，`go.mod` 无需写入版本号。
+模块代码位于 `internal/`（外部不可导入），仅作为应用交付；tag 仍用于记录版本与发布。
 
 ### 发布流程
 
@@ -120,14 +122,12 @@ qtcloud-devops release publish --version v0.0.1 -y
 
 ## 配置
 
-当前硬编码配置见各子包 Config 结构体：
+配置通过环境变量注入，由 `cmd/server/main.go` 的 `newProvider` 加载：
 
-| 子包 | Config 字段 | 用途 |
-|------|-------------|------|
-| `alipay` | AppID, PrivateKey, PublicKey, NotifyURL, ReturnURL | 支付宝应用配置 |
-| `wechat` | AppID, MchID, APIv3Key, MchCert, MchKey, NotifyURL | 微信商户平台配置 |
-
-适配器构造时传入 Config，后续可通过环境变量或配置文件注入（待实现）。
+| 渠道 | 环境变量 | 用途 |
+|------|----------|------|
+| `wechat` | WECHAT_APP_ID, WECHAT_MCH_ID, WECHAT_API_V3_KEY, WECHAT_MCH_CERT, WECHAT_MCH_KEY, WECHAT_NOTIFY_URL | 微信商户平台配置 |
+| `alipay` | ALIPAY_APP_ID, ALIPAY_PRIVATE_KEY, ALIPAY_PUBLIC_KEY, ALIPAY_NOTIFY_URL, ALIPAY_RETURN_URL | 支付宝应用配置 |
 
 ## 测试策略
 
@@ -147,13 +147,13 @@ qtcloud-devops release publish --version v0.0.1 -y
 
 ```bash
 cd src/provider
-go build -o qtcloud-pay .
+make build
 ```
 
 ### 启动服务
 
 ```bash
-./qtcloud-pay
+./bin/provider-server -addr :8080 -channel wechat
 ```
 
-服务默认监听 `:8080`（当前 `main.go` 尚在实现中，`Server.Start()` 已就绪）。
+服务默认监听 `:8080`，渠道由 `-channel` 指定（wechat/alipay），配置从环境变量读取。

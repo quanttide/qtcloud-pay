@@ -1,4 +1,4 @@
-package provider
+package channel
 
 import (
 	"context"
@@ -29,6 +29,9 @@ func NewServer(addr string, p Provider) *Server {
 
 // Handler 返回 HTTP handler（用于测试）。
 func (s *Server) Handler() http.Handler { return s.mux }
+
+// SetHandler 替换 HTTP handler（用于挂载中间件）。
+func (s *Server) SetHandler(h http.Handler) { s.srv.Handler = h }
 
 // Start 启动服务。
 func (s *Server) Start() error {

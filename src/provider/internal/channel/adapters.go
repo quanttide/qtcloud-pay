@@ -1,11 +1,11 @@
-package provider
+package channel
 
 import (
 	"context"
 	"strconv"
 
-	"github.com/quanttide/qtcloud-pay/src/provider/alipay"
-	"github.com/quanttide/qtcloud-pay/src/provider/wechat"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/alipay"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/wechat"
 )
 
 // WechatPay 微信支付适配器。

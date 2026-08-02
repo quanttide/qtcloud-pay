@@ -1,6 +1,8 @@
 # provider
 
-qtcloud-pay 支付提供商抽象层，卖课场景支付接入。
+qtcloud-pay 支付提供商服务，卖课场景支付接入。
+
+按标准 Go 项目布局组织：`cmd/` 为入口，`internal/` 为私有应用和库代码（外部不可导入）。
 
 ## 接口
 
@@ -17,85 +19,76 @@ type Provider interface {
 
 | 渠道 | 包 | 场景 |
 |------|-----|------|
-| 微信支付 JSAPI | `wechat` | 公众号/小程序卖课 |
-| 支付宝网页支付 | `alipay` | PC 端卖课 |
+| 微信支付 JSAPI | `internal/channel/wechat` | 公众号/小程序卖课 |
+| 支付宝网页支付 | `internal/channel/alipay` | PC 端卖课 |
 
-两个实现都分别暴露了原生类型的方法（如 `wechat.Client.JSAPIPay`），也提供了 `Provider` 接口的适配器（`provider.NewWechatPay` / `provider.NewAlipayPay`）。
+两个实现都分别暴露了原生类型的方法（如 `wechat.Client.JSAPIPay`），也提供了 `Provider` 接口的适配器（`channel.NewWechatPay` / `channel.NewAlipayPay`）。
 
 ## 结构
 
 ```
 provider/
-├── provider.go       ← 接口 + 数据结构
-├── adapters.go       ← Provider 接口适配器
-├── wechat/
-│   └── wechat.go     ← 微信支付 JSAPI 实现
-├── alipay/
-│   └── alipay.go     ← 支付宝网页支付实现
+├── cmd/
+│   └── server/
+│       └── main.go              ← 入口：加载配置，组装依赖，启动服务
+├── internal/                    ← 私有应用和库代码，外部不可导入
+│   ├── channel/                 ← 支付渠道模块
+│   │   ├── transport.go         ← HTTP handler（参数绑定、协议转换）
+│   │   ├── service.go           ← Provider 接口
+│   │   ├── adapters.go          ← 微信/支付宝适配器（实现 Provider 接口）
+│   │   ├── model.go             ← 请求/响应模型（DTO）
+│   │   ├── transport_test.go    ← API 测试
+│   │   ├── service_test.go      ← 适配器测试（mock transport）
+│   │   ├── wechat/              ← 微信支付渠道实现
+│   │   │   ├── wechat.go
+│   │   │   └── wechat_test.go
+│   │   └── alipay/              ← 支付宝渠道实现
+│   │       ├── alipay.go
+│   │       └── alipay_test.go
+│   └── middleware/              ← 内部中间件（请求日志）
+│       └── logging.go
 ├── go.mod
 ├── go.sum
+├── Makefile
 └── README.md
 ```
 
 ## 使用
 
-### 直接使用原生客户端
+### 运行服务
 
-```go
-import "github.com/quanttide/qtcloud-pay/src/provider/wechat"
+配置通过环境变量注入，渠道由 `-channel` 指定：
 
-client, _ := wechat.New(&wechat.Config{
-    AppID:     "wx...",
-    MchID:     "商户号",
-    APIv3Key:  "API v3 密钥",
-    MchKey:    `-----BEGIN PRIVATE KEY-----...`,
-    MchCert:   `-----BEGIN CERTIFICATE-----...`,
-    NotifyURL: "https://example.com/wechat/notify",
-})
-
-// JSAPI 下单
-resp, _ := client.JSAPIPay(ctx, &wechat.JSAPIPayRequest{
-    OpenID:      "o...",
-    OutTradeNo:  "ORD20250711001",
-    Total:       9999,       // 分
-    Description: "Python 入门课",
-})
-// resp 包含 appId/timeStamp/nonceStr/package/paySign，直接给前端
+```sh
+# 微信 JSAPI 渠道（公众号/小程序）
+WECHAT_APP_ID=wx... WECHAT_MCH_ID=商户号 WECHAT_API_V3_KEY=... \
+WECHAT_MCH_KEY="$(cat mch_private_key.pem)" WECHAT_MCH_CERT="$(cat mch_cert.pem)" \
+WECHAT_NOTIFY_URL=https://example.com/wechat/notify \
+go run ./cmd/server -addr :8080 -channel wechat
 ```
 
-```go
-import "github.com/quanttide/qtcloud-pay/src/provider/alipay"
-
-client, _ := alipay.New(&alipay.Config{
-    AppID:      "2021...",
-    PrivateKey: `-----BEGIN PRIVATE KEY-----...`,
-    PublicKey:  `-----BEGIN PUBLIC KEY-----...`, // 支付宝公钥，用于验签
-    NotifyURL:  "https://example.com/alipay/notify",
-    ReturnURL:  "https://example.com/order/complete",
-})
-
-// PC 网页支付，返回 HTML 表单
-html, _ := client.PagePay(&alipay.PagePayRequest{
-    OutTradeNo:  "ORD20250711001",
-    TotalAmount: 99.99,
-    Subject:     "Python 入门课",
-})
-// html 直接响应给浏览器，自动跳转支付宝
+```sh
+# 支付宝网页支付渠道（PC）
+ALIPAY_APP_ID=2021... ALIPAY_PRIVATE_KEY="$(cat app_private_key.pem)" \
+ALIPAY_PUBLIC_KEY="$(cat alipay_public_key.pem)" \
+ALIPAY_NOTIFY_URL=https://example.com/alipay/notify \
+ALIPAY_RETURN_URL=https://example.com/order/complete \
+go run ./cmd/server -addr :8080 -channel alipay
 ```
 
-### 使用 Provider 接口
+或使用 Makefile：
 
-```go
-import "github.com/quanttide/qtcloud-pay/src/provider"
-
-p, _ := provider.NewWechatPay(&wechat.Config{...})
-resp, _ := p.Pay(ctx, &provider.PayRequest{
-    OrderID:  "ORD20250711001",
-    Amount:   99.99,
-    Subject:  "Python 入门课",
-    Metadata: map[string]any{"openid": "o..."},
-})
+```sh
+make build && ./bin/provider-server -addr :8080 -channel wechat
 ```
+
+### API
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| POST | `/pay` | 发起支付，返回支付链接/前端调起参数 |
+| GET | `/query/{order_id}` | 查询订单状态 |
+| POST | `/refund` | 申请退款 |
 
 ## 已实现能力
 

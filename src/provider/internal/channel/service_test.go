@@ -1,4 +1,4 @@
-package provider
+package channel
 
 import (
 	"context"
@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/quanttide/qtcloud-pay/src/provider/alipay"
-	"github.com/quanttide/qtcloud-pay/src/provider/wechat"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/alipay"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/wechat"
 )
 
 func generateTestKeyPEM(t *testing.T) string {
