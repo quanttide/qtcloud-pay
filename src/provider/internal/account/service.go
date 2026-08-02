@@ -21,6 +21,10 @@ var (
 	ErrInvalidAmount = errors.New("account: invalid amount")
 	// ErrInvalidRecharge 缺少打款凭证号。
 	ErrInvalidRecharge = errors.New("account: voucher no required")
+	// ErrInvalidRefund 缺少退款凭证号。
+	ErrInvalidRefund = errors.New("account: refund voucher no required")
+	// ErrInsufficientBalance 余额不足，无法退款。
+	ErrInsufficientBalance = errors.New("account: insufficient balance")
 )
 
 // Service 账户与余额服务。
@@ -124,6 +128,54 @@ func (s *Service) Recharge(ctx context.Context, accountID string, amount int64, 
 	})
 	if errors.Is(err, transaction.ErrDuplicateKey) {
 		return nil // 并发下另一请求已入账，本请求整体回滚，视为成功
+	}
+	return err
+}
+
+// Refund 退款登记（多退：对公退款出账，余额扣减）。
+// 与 Recharge 对称：幂等键为退款凭证号；重复提交同凭证号不会重复退款；
+// 余额不足整体回滚并返回 ErrInsufficientBalance。
+func (s *Service) Refund(ctx context.Context, accountID string, amount int64, voucherNo, note string) error {
+	if accountID == "" {
+		return errors.New("account: account id required")
+	}
+	if amount <= 0 {
+		return ErrInvalidAmount
+	}
+	if voucherNo == "" {
+		return ErrInvalidRefund
+	}
+	key := "refund:" + voucherNo
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		exists, err := s.txSvc.Exists(ctx, tx, key)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return nil // 幂等：已退款，不重复处理
+		}
+		acc, err := s.Lock(ctx, tx, accountID)
+		if err != nil {
+			return err
+		}
+		if acc.Balance < amount {
+			return ErrInsufficientBalance
+		}
+		acc.Balance -= amount
+		if err := s.Save(ctx, tx, acc); err != nil {
+			return err
+		}
+		return s.txSvc.Append(ctx, tx, &transaction.Transaction{
+			AccountID:      accountID,
+			Type:           transaction.TypeRefund,
+			Amount:         amount,
+			BalanceAfter:   acc.Balance,
+			IdempotencyKey: key,
+			Note:           note,
+		})
+	})
+	if errors.Is(err, transaction.ErrDuplicateKey) {
+		return nil // 并发下另一请求已退款，本请求整体回滚，视为成功
 	}
 	return err
 }

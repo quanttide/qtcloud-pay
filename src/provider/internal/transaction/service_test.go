@@ -270,6 +270,7 @@ func TestSignedAmountAndAffectsBalance(t *testing.T) {
 		affects bool
 	}{
 		{transaction.TypeRecharge, 100, 100, true},
+		{transaction.TypeRefund, 40, -40, true},
 		{transaction.TypeConsume, 30, -30, true},
 		{transaction.TypeIssue, 50, 0, false},
 		{transaction.TypeRedeem, 20, 0, false},

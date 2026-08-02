@@ -26,6 +26,7 @@ func NewHandler(svc *Service) *Handler {
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /accounts", h.handleCreate)
 	mux.HandleFunc("POST /accounts/{id}/recharges", h.handleRecharge)
+	mux.HandleFunc("POST /accounts/{id}/refunds", h.handleRefund)
 	mux.HandleFunc("GET /accounts/{id}", h.handleGet)
 	mux.HandleFunc("GET /accounts/{id}/transactions", h.handleTransactions)
 }
@@ -62,6 +63,28 @@ func (h *Handler) handleRecharge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.svc.Recharge(r.Context(), accountID, req.Amount, req.VoucherNo, req.Note); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"account_id": accountID})
+}
+
+func (h *Handler) handleRefund(w http.ResponseWriter, r *http.Request) {
+	accountID := strings.TrimSpace(r.PathValue("id"))
+	if accountID == "" {
+		writeError(w, http.StatusBadRequest, "missing account id")
+		return
+	}
+	var req struct {
+		Amount    int64  `json:"amount"`
+		VoucherNo string `json:"voucher_no"`
+		Note      string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if err := h.svc.Refund(r.Context(), accountID, req.Amount, req.VoucherNo, req.Note); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -144,7 +167,9 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		status = http.StatusNotFound
 	case errors.Is(err, ErrExists):
 		status = http.StatusConflict
-	case errors.Is(err, ErrInvalidAmount), errors.Is(err, ErrInvalidRecharge):
+	case errors.Is(err, ErrInsufficientBalance):
+		status = http.StatusUnprocessableEntity
+	case errors.Is(err, ErrInvalidAmount), errors.Is(err, ErrInvalidRecharge), errors.Is(err, ErrInvalidRefund):
 		status = http.StatusBadRequest
 	case errors.Is(err, context.Canceled):
 		status = http.StatusBadRequest

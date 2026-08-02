@@ -100,6 +100,7 @@ make build && ./bin/provider-server -addr :8080 -channel wechat
 |------|------|------|
 | POST | `/accounts` | 创建账户 |
 | POST | `/accounts/{id}/recharges` | 充值登记（对公打款入账，凭证号幂等） |
+| POST | `/accounts/{id}/refunds` | 退款登记（多退：对公退款出账，凭证号幂等，余额不足 422） |
 | GET | `/accounts/{id}` | 账户与余额 |
 | GET | `/accounts/{id}/transactions` | 交易流水 |
 | POST | `/accounts/{id}/coupons` | 发放优惠券（批量，批次号幂等） |

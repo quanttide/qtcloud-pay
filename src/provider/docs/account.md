@@ -4,11 +4,11 @@
 
 ## 职责
 
-创建账户（客户虚拟钱包）；充值登记（对公打款入账，带幂等键）；余额查询。余额是交易的投影，与交易同事务维护。
+创建账户（客户虚拟钱包）；充值登记（对公打款入账，带幂等键）；退款登记（多退：对公退款出账，带幂等键）；余额查询。余额是交易的投影，与交易同事务维护。
 
 ## 依赖
 
-- `transaction`：充值 → 写入充值交易
+- `transaction`：充值/退款 → 写入对应交易
 
 ## 模型
 
@@ -48,6 +48,7 @@ func (s *Service) Recharge(ctx context.Context, accountID string,
 ## 关键点
 
 - 幂等：重复提交同 `voucherNo` 触发 `idempotency_key` 唯一冲突，查回已有交易直接返回成功，不重复入账（不重）
+- 退款与充值对称：幂等键 `refund:{voucher_no}`，余额不足整体回滚（422），余额与退款交易同事务提交
 - 余额与交易同事务提交（不错）
 
 ## API
@@ -56,6 +57,7 @@ func (s *Service) Recharge(ctx context.Context, accountID string,
 |------|------|------|
 | POST | `/accounts` | 创建账户 |
 | POST | `/accounts/{id}/recharges` | 充值登记（对公打款入账） |
+| POST | `/accounts/{id}/refunds` | 退款登记（多退：对公退款出账，余额不足 422） |
 | GET | `/accounts/{id}` | 账户与余额 |
 | GET | `/accounts/{id}/transactions` | 交易流水（委托 transaction 模块） |
 

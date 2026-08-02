@@ -1,10 +1,11 @@
 package itest
 
 import (
+	"net/http"
 	"testing"
 )
 
-// TC-B01 开户与大额充值：余额 = 交易求和；重复提交不重复入账。
+// TC-B01 开户与付费记额度：预收对公打款入账，余额 = 交易求和；重复提交不重复入账。
 func TestB01_RechargeLarge(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
@@ -48,8 +49,8 @@ func TestB02_IssueDataIncentives(t *testing.T) {
 	}
 }
 
-// TC-B03 满减 + 代金券 + 余额组合：代金券先于余额。
-func TestB03_CombinedSettlement(t *testing.T) {
+// TC-B03 按交付进度扣费：分期结算 + 数据量弹性计费，券 → 代金券 → 余额逐笔对得上。
+func TestB03_ProgressBasedBilling(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
 	e.recharge(acc, 800000, "SJ-001")
@@ -62,20 +63,67 @@ func TestB03_CombinedSettlement(t *testing.T) {
 		"expires_at": futureExpiry(), "count": 1, "batch_no": "SJ-V-001",
 	})
 
-	o := e.settle(map[string]any{
-		"order_id": "O-SJ-1", "account_id": acc, "scope": "data", "amount": 800000,
+	// 第一期：按交付进度 500000（满减 100000 + 代金券 50000 + 余额 350000）
+	o1 := e.settle(map[string]any{
+		"order_id": "O-SJ-1", "account_id": acc, "scope": "data", "amount": 500000,
 	})
-	// 满减 100000 → 代金券 50000 → 余额 650000；余额剩 150000
-	e.assertDetail(o, []deduction{
+	e.assertDetail(o1, []deduction{
 		{Kind: "coupon", Amount: 100000},
 		{Kind: "voucher", Amount: 50000},
-		{Kind: "balance", Amount: 650000},
+		{Kind: "balance", Amount: 350000},
 	})
-	e.assertLedger(acc, 800000-650000)
+	e.assertLedger(acc, 450000)
+
+	// 第二期：按实际数据量 300000（纯余额，弹性计费）
+	o2 := e.settle(map[string]any{
+		"order_id": "O-SJ-2", "account_id": acc, "scope": "data", "amount": 300000,
+	})
+	e.assertDetail(o2, []deduction{{Kind: "balance", Amount: 300000}})
+	e.assertLedger(acc, 150000)
+
+	// 账本：2 条消费 + 1 条核销 + 1 条抵现，逐笔对得上
+	if got := e.countType(acc, "consume"); got != 2 {
+		t.Errorf("consume txs = %d, want 2", got)
+	}
+	if got := e.countType(acc, "redeem"); got != 2 {
+		t.Errorf("redeem txs = %d, want 2", got)
+	}
 }
 
-// TC-B04 多满减券选力度最大（减额最大）。
-func TestB04_PickBestFullReduction(t *testing.T) {
+// TC-B04 多退少补：按实际用量结算后，多退（退款登记，幂等）少补（再充值）。
+func TestB04_SettleSettleRefundRecharge(t *testing.T) {
+	e := newEnv(t)
+	acc := e.createAccount("teacher-1")
+	e.recharge(acc, 800000, "SJ-001") // 按预估合同额预收
+
+	// 实际用量 700000 → 多退 100000 回原路
+	e.settle(map[string]any{
+		"order_id": "O-SJ-1", "account_id": acc, "scope": "data", "amount": 700000,
+	})
+	e.assertLedger(acc, 100000)
+
+	e.refund(acc, 100000, "SJ-R-001")
+	e.refund(acc, 100000, "SJ-R-001") // 重复：同凭证号不重复退
+	e.assertLedger(acc, 0)
+	if got := e.countType(acc, "refund"); got != 1 {
+		t.Errorf("refund txs = %d, want 1", got)
+	}
+
+	// 少补：实际用量超出预存 → 余额不足整体回滚 → 补款后再结算
+	e.post("/orders", map[string]any{
+		"order_id": "O-SJ-2", "account_id": acc, "scope": "data", "amount": 300000,
+	}).mustStatus(e, http.StatusUnprocessableEntity)
+	e.assertLedger(acc, 0) // 回滚干净
+
+	e.recharge(acc, 300000, "SJ-002") // 少补
+	e.settle(map[string]any{
+		"order_id": "O-SJ-2", "account_id": acc, "scope": "data", "amount": 300000,
+	})
+	e.assertLedger(acc, 0)
+}
+
+// TC-B05 多满减券选力度最大（减额最大）。
+func TestB05_PickBestFullReduction(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
 	e.recharge(acc, 800000, "SJ-001")
@@ -112,8 +160,8 @@ func TestB04_PickBestFullReduction(t *testing.T) {
 	}
 }
 
-// TC-B05 课程券不能用于数据订单（跨业务隔离）。
-func TestB05_ScopeIsolation(t *testing.T) {
+// TC-B06 课程券不能用于数据订单（跨业务隔离）。
+func TestB06_ScopeIsolation(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
 	e.recharge(acc, 200000, "SJ-001")
@@ -132,8 +180,8 @@ func TestB05_ScopeIsolation(t *testing.T) {
 	}
 }
 
-// TC-B06 多折扣券选力度最大（rate 最低，省得最多）。
-func TestB06_PickBestDiscount(t *testing.T) {
+// TC-B07 多折扣券选力度最大（rate 最低，省得最多）。
+func TestB07_PickBestDiscount(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
 	e.recharge(acc, 100000, "SJ-001")
@@ -169,8 +217,8 @@ func TestB06_PickBestDiscount(t *testing.T) {
 	}
 }
 
-// TC-B07 代金券面值大于剩余应付：只抵应付，不找零（力度约定）。
-func TestB07_VoucherNoChange(t *testing.T) {
+// TC-B08 代金券面值大于剩余应付：只抵应付，不找零（力度约定）。
+func TestB08_VoucherNoChange(t *testing.T) {
 	e := newEnv(t)
 	acc := e.createAccount("teacher-1")
 	e.recharge(acc, 30000, "SJ-001")

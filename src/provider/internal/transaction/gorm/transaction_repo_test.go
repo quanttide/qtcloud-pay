@@ -59,17 +59,18 @@ func TestTransactionRepo(t *testing.T) {
 
 	// ListByAccount / ListAllByAccount / Sum
 	repo.Create(db, &transaction.Transaction{AccountID: "acc_1", Type: transaction.TypeConsume, Amount: 30, IdempotencyKey: "c1"})
+	repo.Create(db, &transaction.Transaction{AccountID: "acc_1", Type: transaction.TypeRefund, Amount: 20, IdempotencyKey: "f1"})
 	list, err := repo.ListByAccount(db, "acc_1", 1, 0)
 	if err != nil || len(list) != 1 {
 		t.Fatalf("ListByAccount = %d items, %v", len(list), err)
 	}
 	all, err := repo.ListAllByAccount(db, "acc_1")
-	if err != nil || len(all) != 2 {
+	if err != nil || len(all) != 3 {
 		t.Fatalf("ListAllByAccount = %d items, %v", len(all), err)
 	}
 	sum, err := repo.SumByAccount(db, "acc_1")
-	if err != nil || sum != 70 {
-		t.Fatalf("SumByAccount = %d, %v; want 70", sum, err)
+	if err != nil || sum != 50 {
+		t.Fatalf("SumByAccount = %d, %v; want 50 (100 − 30 − 20)", sum, err)
 	}
 }
 

@@ -44,8 +44,8 @@ func (r *TransactionRepo) ListAllByAccount(db *gorm.DB, accountID string) ([]tra
 func (r *TransactionRepo) SumByAccount(db *gorm.DB, accountID string) (int64, error) {
 	var sum int64
 	err := db.Model(&transaction.Transaction{}).
-		Select("COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type = ? THEN -amount ELSE 0 END), 0)",
-			transaction.TypeRecharge, transaction.TypeConsume).
+		Select("COALESCE(SUM(CASE WHEN type = ? THEN amount WHEN type IN (?, ?) THEN -amount ELSE 0 END), 0)",
+			transaction.TypeRecharge, transaction.TypeRefund, transaction.TypeConsume).
 		Where("account_id = ?", accountID).
 		Scan(&sum).Error
 	return sum, err

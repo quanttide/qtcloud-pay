@@ -120,6 +120,14 @@ func (e *env) recharge(accountID string, amount int64, voucherNo string) {
 	}).mustStatus(e, http.StatusOK)
 }
 
+// refund 退款（多退）并断言成功。
+func (e *env) refund(accountID string, amount int64, voucherNo string) {
+	e.t.Helper()
+	e.post("/accounts/"+accountID+"/refunds", map[string]any{
+		"amount": amount, "voucher_no": voucherNo,
+	}).mustStatus(e, http.StatusOK)
+}
+
 // account 查询账户。
 func (e *env) account(accountID string) map[string]any {
 	e.t.Helper()
@@ -266,7 +274,7 @@ func (e *env) countType(accountID, typ string) int {
 	return n
 }
 
-// netFlow 账户净变动：Σ(充值) − Σ(余额支付)。
+// netFlow 账户净变动：Σ(充值) − Σ(余额支付) − Σ(退款)。
 func (e *env) netFlow(accountID string) int64 {
 	e.t.Helper()
 	var sum int64
@@ -274,7 +282,7 @@ func (e *env) netFlow(accountID string) int64 {
 		switch tx["type"] {
 		case "recharge":
 			sum += int64(tx["amount"].(float64))
-		case "consume":
+		case "consume", "refund":
 			sum -= int64(tx["amount"].(float64))
 		}
 	}

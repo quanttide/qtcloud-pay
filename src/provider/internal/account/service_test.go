@@ -244,6 +244,109 @@ func TestRecharge_TxServiceError(t *testing.T) {
 	}
 }
 
+func TestRefund(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+
+	acc, _ := svc.Create(ctx, "cust_1")
+	svc.Recharge(ctx, acc.ID, 10000, "voucher-001", "预收")
+	if err := svc.Refund(ctx, acc.ID, 4000, "refund-001", "多退"); err != nil {
+		t.Fatalf("Refund: %v", err)
+	}
+	got, _ := svc.Get(ctx, acc.ID)
+	if got.Balance != 6000 {
+		t.Errorf("balance = %d, want 6000", got.Balance)
+	}
+	txs, err := svc.ListTransactions(ctx, acc.ID, 10, 0)
+	if err != nil || len(txs) != 2 {
+		t.Fatalf("transactions = %d, %v", len(txs), err)
+	}
+	if txs[0].Type != transaction.TypeRefund || txs[0].Amount != 4000 || txs[0].BalanceAfter != 6000 {
+		t.Errorf("tx = %+v", txs[0])
+	}
+
+	// 幂等：同凭证号重复提交不重复退款
+	if err := svc.Refund(ctx, acc.ID, 4000, "refund-001", ""); err != nil {
+		t.Fatalf("Refund(dup): %v", err)
+	}
+	got, _ = svc.Get(ctx, acc.ID)
+	if got.Balance != 6000 {
+		t.Errorf("balance after dup = %d, want 6000", got.Balance)
+	}
+	if txs, _ = svc.ListTransactions(ctx, acc.ID, 10, 0); len(txs) != 2 {
+		t.Errorf("transactions after dup = %d, want 2", len(txs))
+	}
+}
+
+func TestRefund_InsufficientBalance(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+
+	acc, _ := svc.Create(ctx, "cust_1")
+	svc.Recharge(ctx, acc.ID, 5000, "voucher-001", "")
+	err := svc.Refund(ctx, acc.ID, 6000, "refund-001", "")
+	if !errors.Is(err, account.ErrInsufficientBalance) {
+		t.Fatalf("err = %v, want ErrInsufficientBalance", err)
+	}
+	// 整体回滚：余额不变、无退款交易
+	got, _ := svc.Get(ctx, acc.ID)
+	if got.Balance != 5000 {
+		t.Errorf("balance = %d, want 5000", got.Balance)
+	}
+	txs, _ := svc.ListTransactions(ctx, acc.ID, 10, 0)
+	if len(txs) != 1 {
+		t.Errorf("transactions = %d, want 1 (rolled back)", len(txs))
+	}
+}
+
+func TestRefund_Validation(t *testing.T) {
+	svc, _ := newService(t)
+	ctx := context.Background()
+
+	acc, _ := svc.Create(ctx, "cust_1")
+
+	if err := svc.Refund(ctx, acc.ID, 0, "r1", ""); !errors.Is(err, account.ErrInvalidAmount) {
+		t.Errorf("amount=0 err = %v, want ErrInvalidAmount", err)
+	}
+	if err := svc.Refund(ctx, acc.ID, -5, "r1", ""); !errors.Is(err, account.ErrInvalidAmount) {
+		t.Errorf("amount<0 err = %v, want ErrInvalidAmount", err)
+	}
+	if err := svc.Refund(ctx, acc.ID, 100, "", ""); !errors.Is(err, account.ErrInvalidRefund) {
+		t.Errorf("empty voucher err = %v, want ErrInvalidRefund", err)
+	}
+	if err := svc.Refund(ctx, "", 100, "r1", ""); err == nil {
+		t.Error("empty account should error")
+	}
+}
+
+func TestRefund_AccountNotFound(t *testing.T) {
+	svc, _ := newService(t)
+	err := svc.Refund(context.Background(), "acc_missing", 100, "r1", "")
+	if !errors.Is(err, account.ErrNotFound) {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestRefund_TxServiceError(t *testing.T) {
+	db := setupDB(t)
+	ctx := context.Background()
+
+	// 写交易失败 → 错误传播（余额扣减一并回滚）
+	txSvcAppend := transaction.NewService(&stubTxRepo{createErr: errors.New("write failed")})
+	svcAppend := account.NewService(db, accountgorm.NewAccountRepo(), txSvcAppend)
+	acc, err := svcAppend.Create(ctx, "cust_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svcAppend.Refund(ctx, acc.ID, 100, "r1", ""); err == nil {
+		t.Fatal("Append error should propagate")
+	}
+	got, _ := svcAppend.Get(ctx, acc.ID)
+	if got.Balance != 0 {
+		t.Errorf("balance = %d, want 0 (rolled back)", got.Balance)
+	}
+}
+
 func TestListTransactions(t *testing.T) {
 	svc, _ := newService(t)
 	ctx := context.Background()

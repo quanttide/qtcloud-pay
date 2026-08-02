@@ -130,6 +130,58 @@ func TestTransport_Recharge_Errors(t *testing.T) {
 	}
 }
 
+func TestTransport_Refund(t *testing.T) {
+	ts, svc := newTestServer(t)
+	ctx := context.Background()
+	acc, _ := svc.Create(ctx, "cust_1")
+	svc.Recharge(ctx, acc.ID, 10000, "v1", "")
+
+	resp := postJSON(t, ts.URL+"/accounts/"+acc.ID+"/refunds",
+		map[string]any{"amount": 4000, "voucher_no": "r1", "note": "多退"})
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+
+	got, _ := svc.Get(ctx, acc.ID)
+	if got.Balance != 6000 {
+		t.Errorf("balance = %d, want 6000", got.Balance)
+	}
+}
+
+func TestTransport_Refund_Errors(t *testing.T) {
+	ts, svc := newTestServer(t)
+	ctx := context.Background()
+	acc, _ := svc.Create(ctx, "cust_1")
+	svc.Recharge(ctx, acc.ID, 5000, "v1", "")
+
+	cases := []struct {
+		name string
+		url  string
+		body any
+		want int
+	}{
+		{"bad json", ts.URL + "/accounts/" + acc.ID + "/refunds", "not-json", 400},
+		{"invalid amount", ts.URL + "/accounts/" + acc.ID + "/refunds",
+			map[string]any{"amount": 0, "voucher_no": "r1"}, 400},
+		{"insufficient balance", ts.URL + "/accounts/" + acc.ID + "/refunds",
+			map[string]any{"amount": 6000, "voucher_no": "r1"}, 422},
+		{"account not found", ts.URL + "/accounts/acc_missing/refunds",
+			map[string]any{"amount": 100, "voucher_no": "r1"}, 404},
+		{"empty id", ts.URL + "/accounts/%20/refunds",
+			map[string]any{"amount": 100, "voucher_no": "r1"}, 400},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resp := postJSON(t, c.url, c.body)
+			defer resp.Body.Close()
+			if resp.StatusCode != c.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, c.want)
+			}
+		})
+	}
+}
+
 func TestTransport_Get(t *testing.T) {
 	ts, svc := newTestServer(t)
 	ctx := context.Background()

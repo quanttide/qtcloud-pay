@@ -72,6 +72,13 @@ class ApiClient:
         )
         assert status == 200, f"recharge: {status} {body}"
 
+    def refund(self, account_id: str, amount: int, voucher_no: str) -> None:
+        status, body = self.post(
+            f"/accounts/{account_id}/refunds",
+            {"amount": amount, "voucher_no": voucher_no},
+        )
+        assert status == 200, f"refund: {status} {body}"
+
     def issue_coupon(
         self,
         account_id: str,
@@ -206,11 +213,11 @@ class ApiClient:
         return sum(1 for tx in self.get_transactions(account_id) if tx["type"] == typ)
 
     def net_flow(self, account_id: str) -> int:
-        """账户净变动：Σ(充值) − Σ(余额支付)。"""
+        """账户净变动：Σ(充值) − Σ(余额支付) − Σ(退款)。"""
         flow = 0
         for tx in self.get_transactions(account_id):
             if tx["type"] == "recharge":
                 flow += tx["amount"]
-            elif tx["type"] == "consume":
+            elif tx["type"] in ("consume", "refund"):
                 flow -= tx["amount"]
         return flow
