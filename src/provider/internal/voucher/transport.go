@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
 )
 
 // Handler 代金券 API。
@@ -32,13 +34,13 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Amount    int64     `json:"amount"`
-		Scope     string    `json:"scope"`
-		ProductID string    `json:"product_id"`
-		ExpiresAt time.Time `json:"expires_at"`
-		Count     int       `json:"count"`
-		BatchNo   string    `json:"batch_no"`
-		Note      string    `json:"note"`
+		Amount    money.Cents `json:"amount"`
+		Scope     string      `json:"scope"`
+		ProductID string      `json:"product_id"`
+		ExpiresAt time.Time   `json:"expires_at"`
+		Count     int         `json:"count"`
+		BatchNo   string      `json:"batch_no"`
+		Note      string      `json:"note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -46,7 +48,7 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.svc.Issue(r.Context(), &IssueRequest{
 		AccountID: accountID,
-		Amount:    req.Amount,
+		Amount:    int64(req.Amount),
 		Scope:     req.Scope,
 		ProductID: req.ProductID,
 		ExpiresAt: req.ExpiresAt,
@@ -65,6 +67,28 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// voucherDTO 代金券响应（金额以元传输）。
+type voucherDTO struct {
+	ID        int64       `json:"id"`
+	AccountID string      `json:"account_id"`
+	Amount    money.Cents `json:"amount"`
+	Scope     string      `json:"scope"`
+	ProductID string      `json:"product_id,omitempty"`
+	ExpiresAt time.Time   `json:"expires_at"`
+	Status    string      `json:"status"`
+	UsedAt    *time.Time  `json:"used_at,omitempty"`
+	OrderID   string      `json:"order_id,omitempty"`
+	CreatedAt time.Time   `json:"created_at"`
+}
+
+func toVoucherDTO(v Voucher) voucherDTO {
+	return voucherDTO{
+		ID: v.ID, AccountID: v.AccountID, Amount: money.Cents(v.Amount),
+		Scope: v.Scope, ProductID: v.ProductID, ExpiresAt: v.ExpiresAt,
+		Status: v.Status, UsedAt: v.UsedAt, OrderID: v.OrderID, CreatedAt: v.CreatedAt,
+	}
+}
+
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
@@ -76,12 +100,13 @@ func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	if list == nil {
-		list = []Voucher{}
+	dtos := make([]voucherDTO, 0, len(list))
+	for _, v := range list {
+		dtos = append(dtos, toVoucherDTO(v))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"account_id": accountID,
-		"vouchers":   list,
+		"vouchers":   dtos,
 	})
 }
 

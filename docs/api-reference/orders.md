@@ -12,7 +12,7 @@ Content-Type: application/json
   "order_id": "O-GT-1",
   "account_id": "acc_3f2a...",
   "scope": "course",
-  "amount": 10000
+  "amount": 100.00
 }
 ```
 
@@ -21,7 +21,7 @@ Content-Type: application/json
 | `order_id` | string | 是 | 商户订单号（幂等键） |
 | `account_id` | string | 是 | 账户 ID |
 | `scope` | string | 是 | 业务范围：`course` / `data` / `cloud`（券按此匹配） |
-| `amount` | int | 是 | 订单金额（分），正数 |
+| `amount` | number | 是 | 订单金额（元，两位小数），正数 |
 | `product_id` | string | 否 | 商品 ID（指定商品券按此匹配） |
 | `customer_id` | string | 否 | 客户标识（信息性） |
 
@@ -32,9 +32,9 @@ Content-Type: application/json
   "id": "O-GT-1",
   "status": "settled",
   "settle_detail": [
-    {"kind": "coupon", "ref_id": 1, "amount": 1000},
-    {"kind": "voucher", "ref_id": 1, "amount": 2000},
-    {"kind": "balance", "ref_id": 0, "amount": 7000}
+    {"kind": "coupon", "ref_id": 1, "amount": 10.00},
+    {"kind": "voucher", "ref_id": 1, "amount": 20.00},
+    {"kind": "balance", "ref_id": 0, "amount": 70.00}
   ]
 }
 ```

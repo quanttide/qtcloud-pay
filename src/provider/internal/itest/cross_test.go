@@ -93,7 +93,7 @@ func TestX04_ConcurrentSameOrder(t *testing.T) {
 	e.recharge(acc, 20000, "GT-001")
 
 	body, _ := json.Marshal(map[string]any{
-		"order_id": "O-C-1", "account_id": acc, "scope": "course", "amount": 10000,
+		"order_id": "O-C-1", "account_id": acc, "scope": "course", "amount": toYuan(10000),
 	})
 	var wg sync.WaitGroup
 	statuses := make(chan int, 2)
@@ -124,7 +124,7 @@ func TestX04_ConcurrentSameOrder(t *testing.T) {
 		t.Errorf("consume txs = %d, want 1", got)
 	}
 	o := e.order("O-C-1")
-	if o["amount"] != float64(10000) {
+	if centsOf(o["amount"]) != 10000 {
 		t.Errorf("order = %v", o)
 	}
 }
@@ -187,8 +187,8 @@ func TestX05_GlobalReconciliation(t *testing.T) {
 	// 账单导出：期初 + 净变动 = 期末
 	for _, acc := range []string{stu, teacher, cloud} {
 		stmt := e.statement(acc)
-		opening := int64(stmt["opening_balance"].(float64))
-		closing := int64(stmt["closing_balance"].(float64))
+		opening := centsOf(stmt["opening_balance"])
+		closing := centsOf(stmt["closing_balance"])
 		if opening+e.netFlow(acc) != closing {
 			t.Errorf("account %s: opening %d + net %d != closing %d", acc, opening, e.netFlow(acc), closing)
 		}

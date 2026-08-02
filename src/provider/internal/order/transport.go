@@ -6,11 +6,13 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/billing"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
+	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
 )
 
 // Handler 订单 API。
@@ -31,12 +33,12 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		OrderID    string `json:"order_id"`
-		CustomerID string `json:"customer_id"`
-		AccountID  string `json:"account_id"`
-		ProductID  string `json:"product_id"`
-		Scope      string `json:"scope"`
-		Amount     int64  `json:"amount"`
+		OrderID    string      `json:"order_id"`
+		CustomerID string      `json:"customer_id"`
+		AccountID  string      `json:"account_id"`
+		ProductID  string      `json:"product_id"`
+		Scope      string      `json:"scope"`
+		Amount     money.Cents `json:"amount"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -44,13 +46,13 @@ func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 	}
 	order, err := h.svc.Settle(r.Context(), &SettleRequest{
 		OrderID: req.OrderID, CustomerID: req.CustomerID, AccountID: req.AccountID,
-		ProductID: req.ProductID, Scope: req.Scope, Amount: req.Amount,
+		ProductID: req.ProductID, Scope: req.Scope, Amount: int64(req.Amount),
 	})
 	if err != nil {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, order)
+	writeJSON(w, http.StatusCreated, toOrderDTO(order))
 }
 
 func (h *Handler) handleGet(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +66,59 @@ func (h *Handler) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, order)
+	writeJSON(w, http.StatusOK, toOrderDTO(order))
+}
+
+// orderDTO 订单响应（金额以元传输）。
+type orderDTO struct {
+	ID           string          `json:"id"`
+	CustomerID   string          `json:"customer_id"`
+	AccountID    string          `json:"account_id"`
+	ProductID    string          `json:"product_id,omitempty"`
+	Scope        string          `json:"scope,omitempty"`
+	Amount       money.Cents     `json:"amount"`
+	Status       string          `json:"status"`
+	SettleDetail json.RawMessage `json:"settle_detail,omitempty"`
+	CreatedAt    time.Time       `json:"created_at"`
+	SettledAt    *time.Time      `json:"settled_at,omitempty"`
+}
+
+func toOrderDTO(o *Order) orderDTO {
+	return orderDTO{
+		ID: o.ID, CustomerID: o.CustomerID, AccountID: o.AccountID,
+		ProductID: o.ProductID, Scope: o.Scope, Amount: money.Cents(o.Amount),
+		Status: o.Status, SettleDetail: formatSettleDetail(o.SettleDetail),
+		CreatedAt: o.CreatedAt, SettledAt: o.SettledAt,
+	}
+}
+
+// formatSettleDetail 将结算明细快照中的金额（存储为分）转为元。
+func formatSettleDetail(raw json.RawMessage) json.RawMessage {
+	if len(raw) == 0 || string(raw) == "null" {
+		return raw
+	}
+	var ds []struct {
+		Kind   string `json:"kind"`
+		RefID  int64  `json:"ref_id"`
+		Amount int64  `json:"amount"` // 存储为分
+	}
+	if err := json.Unmarshal(raw, &ds); err != nil {
+		return raw
+	}
+	type detailOut struct {
+		Kind   string      `json:"kind"`
+		RefID  int64       `json:"ref_id"`
+		Amount money.Cents `json:"amount"`
+	}
+	out := make([]detailOut, 0, len(ds))
+	for _, d := range ds {
+		out = append(out, detailOut{Kind: d.Kind, RefID: d.RefID, Amount: money.Cents(d.Amount)})
+	}
+	b, err := json.Marshal(out)
+	if err != nil {
+		return raw
+	}
+	return b
 }
 
 // writeJSON 以 JSON 格式写入响应。

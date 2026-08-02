@@ -23,6 +23,16 @@ def unique(prefix: str) -> str:
     return f"{prefix}-{time.time_ns()}"
 
 
+def _yuan(cents: int) -> float:
+    """分 → 元（API 传输单位；json.dumps 输出两位小数数字）。"""
+    return cents / 100
+
+
+def _cents(v: Any) -> int:
+    """元 → 分：解析 API 响应中的金额（JSON 数字，元）。"""
+    return int(round(float(v) * 100))
+
+
 class ApiClient:
     """基于标准库的 JSON HTTP 客户端 + 账本核心领域辅助。"""
 
@@ -68,14 +78,14 @@ class ApiClient:
     def recharge(self, account_id: str, amount: int, voucher_no: str) -> None:
         status, body = self.post(
             f"/accounts/{account_id}/recharges",
-            {"amount": amount, "voucher_no": voucher_no},
+            {"amount": _yuan(amount), "voucher_no": voucher_no},
         )
         assert status == 200, f"recharge: {status} {body}"
 
     def refund(self, account_id: str, amount: int, voucher_no: str) -> None:
         status, body = self.post(
             f"/accounts/{account_id}/refunds",
-            {"amount": amount, "voucher_no": voucher_no},
+            {"amount": _yuan(amount), "voucher_no": voucher_no},
         )
         assert status == 200, f"refund: {status} {body}"
 
@@ -103,9 +113,9 @@ class ApiClient:
         if rate is not None:
             body["rate"] = rate
         if threshold is not None:
-            body["threshold"] = threshold
+            body["threshold"] = _yuan(threshold)
         if amount is not None:
-            body["amount"] = amount
+            body["amount"] = _yuan(amount)
         if product_id is not None:
             body["product_id"] = product_id
         status, resp = self.post(f"/accounts/{account_id}/coupons", body)
@@ -123,7 +133,7 @@ class ApiClient:
         batch_no: str | None = None,
     ) -> None:
         body: dict[str, Any] = {
-            "amount": amount,
+            "amount": _yuan(amount),
             "scope": scope,
             "expires_at": expires_at or future_expiry(),
             "count": count,
@@ -148,7 +158,7 @@ class ApiClient:
             "order_id": order_id,
             "account_id": account_id,
             "scope": scope,
-            "amount": amount,
+            "amount": _yuan(amount),
         }
         if product_id is not None:
             body["product_id"] = product_id
@@ -166,7 +176,7 @@ class ApiClient:
         return body
 
     def balance(self, account_id: str) -> int:
-        return self.get_account(account_id)["balance"]
+        return _cents(self.get_account(account_id)["balance"])
 
     def get_coupons(self, account_id: str) -> list[dict[str, Any]]:
         status, body = self.get(f"/accounts/{account_id}/coupons")
@@ -181,11 +191,25 @@ class ApiClient:
     def get_transactions(self, account_id: str) -> list[dict[str, Any]]:
         status, body = self.get(f"/accounts/{account_id}/transactions?limit=100")
         assert status == 200, f"get_transactions: {status} {body}"
-        return body["transactions"]
+        # 金额统一归一为分（API 传输为元）
+        return [
+            {
+                **tx,
+                "amount": _cents(tx["amount"]),
+                "balance_after": _cents(tx["balance_after"]),
+            }
+            for tx in body["transactions"]
+        ]
 
     def statement(self, account_id: str) -> dict[str, Any]:
         status, body = self.get(f"/accounts/{account_id}/statement")
         assert status == 200, f"statement: {status} {body}"
+        # 金额统一归一为分（API 传输为元）
+        body["opening_balance"] = _cents(body["opening_balance"])
+        body["closing_balance"] = _cents(body["closing_balance"])
+        for e in body["entries"]:
+            e["amount"] = _cents(e["amount"])
+            e["running_balance"] = _cents(e["running_balance"])
         return body
 
     def consistency(self) -> list[dict[str, Any]]:
@@ -205,8 +229,8 @@ class ApiClient:
     def assert_detail(
         self, order: dict[str, Any], want: list[tuple[str, int]]
     ) -> None:
-        """断言结算明细的 (类型, 金额) 序列（ref_id 为自增 ID，不可预测）。"""
-        got = [(d["kind"], d["amount"]) for d in order["settle_detail"]]
+        """断言结算明细的 (类型, 金额) 序列（金额已归一为分）。"""
+        got = [(d["kind"], _cents(d["amount"])) for d in order["settle_detail"]]
         assert got == want, f"detail = {got}, want {want}"
 
     def count_type(self, account_id: str, typ: str) -> int:

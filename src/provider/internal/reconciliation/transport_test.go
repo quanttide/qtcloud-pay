@@ -11,6 +11,7 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/reconciliation"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *reconciliation.Service) {
@@ -112,8 +113,8 @@ func TestTransport_Statement(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	var got struct {
-		AccountID string `json:"account_id"`
-		Closing   int64  `json:"closing_balance"`
+		AccountID string      `json:"account_id"`
+		Closing   money.Cents `json:"closing_balance"`
 	}
 	json.NewDecoder(resp.Body).Decode(&got)
 	if got.AccountID != acc.ID || got.Closing != 1000 {

@@ -1,12 +1,15 @@
 // Package itest 账本核心集成测试（对齐 roadmap/tests.md）：
 // SQLite :memory: 真库 + 全模块真实组装（internal/app.BuildMux）+ 真实 HTTP API 驱动。
 // 不 mock、不单独测纯函数——计费等逻辑的正确性由业务旅程的账本断言间接覆盖。
+//
+// 金额约定：测试用例内部一律以分（int64）表达；helper 在发送时转为元、断言时解析回分。
 package itest
 
 import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -101,6 +104,28 @@ func (r *resp) json(e *env, v any) *resp {
 
 // --- 领域操作辅助（走真实 API） ---
 
+// yuan 分 → 元（float，JSON 序列化为两位小数数字）。
+func yuan(cents int64) float64 {
+	return float64(cents) / 100
+}
+
+// centsOf 元 → 分：解析 API 响应中的金额（JSON 数字，元）。
+func centsOf(v any) int64 {
+	return int64(math.Round(v.(float64) * 100))
+}
+
+// toYuan 将测试用例传入的金额（int 或 int64，分）转为元。
+// 测试 map 字面量的整数默认是 int，需兼容两种类型。
+func toYuan(v any) float64 {
+	switch a := v.(type) {
+	case int:
+		return float64(a) / 100
+	case int64:
+		return float64(a) / 100
+	}
+	return 0
+}
+
 // createAccount 创建账户并返回账户 ID。
 func (e *env) createAccount(customerID string) string {
 	e.t.Helper()
@@ -112,19 +137,19 @@ func (e *env) createAccount(customerID string) string {
 	return got.ID
 }
 
-// recharge 充值并断言成功。
+// recharge 充值并断言成功（金额单位：分）。
 func (e *env) recharge(accountID string, amount int64, voucherNo string) {
 	e.t.Helper()
 	e.post("/accounts/"+accountID+"/recharges", map[string]any{
-		"amount": amount, "voucher_no": voucherNo,
+		"amount": yuan(amount), "voucher_no": voucherNo,
 	}).mustStatus(e, http.StatusOK)
 }
 
-// refund 退款（多退）并断言成功。
+// refund 退款（多退）并断言成功（金额单位：分）。
 func (e *env) refund(accountID string, amount int64, voucherNo string) {
 	e.t.Helper()
 	e.post("/accounts/"+accountID+"/refunds", map[string]any{
-		"amount": amount, "voucher_no": voucherNo,
+		"amount": yuan(amount), "voucher_no": voucherNo,
 	}).mustStatus(e, http.StatusOK)
 }
 
@@ -136,21 +161,35 @@ func (e *env) account(accountID string) map[string]any {
 	return got
 }
 
-// balance 查询账户余额。
+// balance 查询账户余额（返回分）。
 func (e *env) balance(accountID string) int64 {
 	e.t.Helper()
-	return int64(e.account(accountID)["balance"].(float64))
+	return centsOf(e.account(accountID)["balance"])
 }
 
-// issueCoupon 发放优惠券并断言成功。
+// issueCoupon 发放优惠券并断言成功（金额单位：分）。
 func (e *env) issueCoupon(accountID string, c map[string]any) {
 	e.t.Helper()
+	for _, k := range []string{"threshold", "amount"} {
+		if v, ok := c[k]; ok {
+			switch v.(type) {
+			case int, int64:
+				c[k] = toYuan(v)
+			}
+		}
+	}
 	e.post("/accounts/"+accountID+"/coupons", c).mustStatus(e, http.StatusOK)
 }
 
-// issueVoucher 发放代金券并断言成功。
+// issueVoucher 发放代金券并断言成功（金额单位：分）。
 func (e *env) issueVoucher(accountID string, v map[string]any) {
 	e.t.Helper()
+	if a, ok := v["amount"]; ok {
+		switch a.(type) {
+		case int, int64:
+			v["amount"] = toYuan(a)
+		}
+	}
 	e.post("/accounts/"+accountID+"/vouchers", v).mustStatus(e, http.StatusOK)
 }
 
@@ -174,9 +213,15 @@ func (e *env) vouchers(accountID string) []map[string]any {
 	return got.Vouchers
 }
 
-// settle 下单结算并断言 201，返回订单。
+// settle 下单结算并断言 201，返回订单（金额单位：分）。
 func (e *env) settle(o map[string]any) map[string]any {
 	e.t.Helper()
+	if v, ok := o["amount"]; ok {
+		switch v.(type) {
+		case int, int64:
+			o["amount"] = toYuan(v)
+		}
+	}
 	var got map[string]any
 	e.post("/orders", o).mustStatus(e, http.StatusCreated).json(e, &got)
 	return got
@@ -231,7 +276,7 @@ func (e *env) detail(order map[string]any) []map[string]any {
 	return detail
 }
 
-// assertDetail 断言结算明细的类型与金额序列。
+// assertDetail 断言结算明细的类型与金额序列（金额单位：分）。
 func (e *env) assertDetail(order map[string]any, want []deduction) {
 	e.t.Helper()
 	got := e.detail(order)
@@ -239,7 +284,7 @@ func (e *env) assertDetail(order map[string]any, want []deduction) {
 		e.t.Fatalf("detail = %v, want %+v", got, want)
 	}
 	for i, w := range want {
-		if got[i]["kind"] != w.Kind || int64(got[i]["amount"].(float64)) != w.Amount {
+		if got[i]["kind"] != w.Kind || centsOf(got[i]["amount"]) != w.Amount {
 			e.t.Errorf("detail[%d] = %v, want %+v", i, got[i], w)
 		}
 	}
@@ -274,16 +319,16 @@ func (e *env) countType(accountID, typ string) int {
 	return n
 }
 
-// netFlow 账户净变动：Σ(充值) − Σ(余额支付) − Σ(退款)。
+// netFlow 账户净变动：Σ(充值) − Σ(余额支付) − Σ(退款)（返回分）。
 func (e *env) netFlow(accountID string) int64 {
 	e.t.Helper()
 	var sum int64
 	for _, tx := range e.transactions(accountID) {
 		switch tx["type"] {
 		case "recharge":
-			sum += int64(tx["amount"].(float64))
+			sum += centsOf(tx["amount"])
 		case "consume", "refund":
-			sum -= int64(tx["amount"].(float64))
+			sum -= centsOf(tx["amount"])
 		}
 	}
 	return sum

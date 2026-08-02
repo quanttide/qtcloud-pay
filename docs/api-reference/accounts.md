@@ -63,12 +63,12 @@ GET /accounts/{id}/transactions?limit=20&offset=0
 POST /accounts/{id}/recharges
 Content-Type: application/json
 
-{"amount": 20000, "voucher_no": "GT-001", "note": "对公打款"}
+{"amount": 200.00, "voucher_no": "GT-001", "note": "对公打款"}
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `amount` | int | 是 | 金额（分），正数 |
+| `amount` | number | 是 | 金额（元，两位小数），正数 |
 | `voucher_no` | string | 是 | 打款凭证号（幂等键） |
 | `note` | string | 否 | 备注 |
 
@@ -84,7 +84,7 @@ Content-Type: application/json
 POST /accounts/{id}/refunds
 Content-Type: application/json
 
-{"amount": 100000, "voucher_no": "SJ-R-001", "note": "多退"}
+{"amount": 1000.00, "voucher_no": "SJ-R-001", "note": "多退"}
 ```
 
 字段同充值（`amount` 正数、`voucher_no` 幂等键、`note` 可选）。

@@ -8,8 +8,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
 )
 
 // Handler 账户 API。
@@ -31,6 +33,42 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /accounts/{id}/transactions", h.handleTransactions)
 }
 
+// accountDTO 账户响应（金额以元传输）。
+type accountDTO struct {
+	ID         string      `json:"id"`
+	CustomerID string      `json:"customer_id"`
+	Balance    money.Cents `json:"balance"`
+	CreatedAt  time.Time   `json:"created_at"`
+	UpdatedAt  time.Time   `json:"updated_at"`
+}
+
+func toAccountDTO(a *Account) accountDTO {
+	return accountDTO{
+		ID: a.ID, CustomerID: a.CustomerID, Balance: money.Cents(a.Balance),
+		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
+	}
+}
+
+// txDTO 交易流水响应（金额以元传输）。
+type txDTO struct {
+	ID           int64       `json:"id"`
+	AccountID    string      `json:"account_id"`
+	Type         string      `json:"type"`
+	Amount       money.Cents `json:"amount"`
+	BalanceAfter money.Cents `json:"balance_after"`
+	OrderID      string      `json:"order_id,omitempty"`
+	Note         string      `json:"note,omitempty"`
+	CreatedAt    time.Time   `json:"created_at"`
+}
+
+func toTxDTO(t transaction.Transaction) txDTO {
+	return txDTO{
+		ID: t.ID, AccountID: t.AccountID, Type: t.Type,
+		Amount: money.Cents(t.Amount), BalanceAfter: money.Cents(t.BalanceAfter),
+		OrderID: t.OrderID, Note: t.Note, CreatedAt: t.CreatedAt,
+	}
+}
+
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		CustomerID string `json:"customer_id"`
@@ -44,7 +82,7 @@ func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusCreated, acc)
+	writeJSON(w, http.StatusCreated, toAccountDTO(acc))
 }
 
 func (h *Handler) handleRecharge(w http.ResponseWriter, r *http.Request) {
@@ -54,15 +92,15 @@ func (h *Handler) handleRecharge(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Amount    int64  `json:"amount"`
-		VoucherNo string `json:"voucher_no"`
-		Note      string `json:"note"`
+		Amount    money.Cents `json:"amount"`
+		VoucherNo string      `json:"voucher_no"`
+		Note      string      `json:"note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.svc.Recharge(r.Context(), accountID, req.Amount, req.VoucherNo, req.Note); err != nil {
+	if err := h.svc.Recharge(r.Context(), accountID, int64(req.Amount), req.VoucherNo, req.Note); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -76,15 +114,15 @@ func (h *Handler) handleRefund(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Amount    int64  `json:"amount"`
-		VoucherNo string `json:"voucher_no"`
-		Note      string `json:"note"`
+		Amount    money.Cents `json:"amount"`
+		VoucherNo string      `json:"voucher_no"`
+		Note      string      `json:"note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if err := h.svc.Refund(r.Context(), accountID, req.Amount, req.VoucherNo, req.Note); err != nil {
+	if err := h.svc.Refund(r.Context(), accountID, int64(req.Amount), req.VoucherNo, req.Note); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -102,7 +140,7 @@ func (h *Handler) handleGet(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, acc)
+	writeJSON(w, http.StatusOK, toAccountDTO(acc))
 }
 
 func (h *Handler) handleTransactions(w http.ResponseWriter, r *http.Request) {
@@ -117,12 +155,13 @@ func (h *Handler) handleTransactions(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	if txs == nil {
-		txs = []transaction.Transaction{}
+	dtos := make([]txDTO, 0, len(txs))
+	for _, t := range txs {
+		dtos = append(dtos, toTxDTO(t))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"account_id":   accountID,
-		"transactions": txs,
+		"transactions": dtos,
 	})
 }
 

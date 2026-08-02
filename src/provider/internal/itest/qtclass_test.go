@@ -26,8 +26,8 @@ func TestA01_RechargeIdempotent(t *testing.T) {
 		t.Fatalf("txs = %d, want 1", len(txs))
 	}
 	tx := txs[0]
-	if tx["type"] != "recharge" || int64(tx["amount"].(float64)) != 20000 ||
-		int64(tx["balance_after"].(float64)) != 20000 {
+	if tx["type"] != "recharge" || centsOf(tx["amount"]) != 20000 ||
+		centsOf(tx["balance_after"]) != 20000 {
 		t.Errorf("tx = %v", tx)
 	}
 }
@@ -99,7 +99,7 @@ func TestA03_LearningDeduction(t *testing.T) {
 	var after []int64
 	for _, tx := range txs {
 		if tx["type"] == "consume" {
-			after = append(after, int64(tx["balance_after"].(float64)))
+			after = append(after, centsOf(tx["balance_after"]))
 		}
 	}
 	slices.Reverse(after)

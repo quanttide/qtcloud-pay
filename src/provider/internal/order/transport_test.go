@@ -38,7 +38,7 @@ func fundedAccount(t *testing.T, e *env, ctx context.Context) string {
 func settleBody(accountID string) map[string]any {
 	return map[string]any{
 		"order_id": "ORD-HTTP-1", "customer_id": "cust_1", "account_id": accountID,
-		"product_id": "course-1", "scope": "course", "amount": 10000,
+		"product_id": "course-1", "scope": "course", "amount": 100.00,
 	}
 }
 
@@ -56,7 +56,10 @@ func TestTransport_Settle(t *testing.T) {
 	if resp.StatusCode != http.StatusCreated {
 		t.Fatalf("status = %d, want 201", resp.StatusCode)
 	}
-	var got order.Order
+	var got struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
 	json.NewDecoder(resp.Body).Decode(&got)
 	if got.ID != "ORD-HTTP-1" || got.Status != order.StatusSettled {
 		t.Errorf("order = %+v", got)
@@ -95,7 +98,7 @@ func TestTransport_Settle_Insufficient(t *testing.T) {
 	acc, _ := e.accountSvc.Create(ctx, "cust_1")
 	e.accountSvc.Recharge(ctx, acc.ID, 100, "v-small", "") // 余额不足
 
-	body := `{"order_id":"ORD-X","account_id":"` + acc.ID + `","scope":"course","amount":10000}`
+	body := `{"order_id":"ORD-X","account_id":"` + acc.ID + `","scope":"course","amount":100.00}`
 	resp, err := http.Post(ts.URL+"/orders", "application/json", bytes.NewReader([]byte(body)))
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +125,9 @@ func TestTransport_Get(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
-	var got order.Order
+	var got struct {
+		ID string `json:"id"`
+	}
 	json.NewDecoder(resp.Body).Decode(&got)
 	if got.ID != "ORD-G" {
 		t.Errorf("order = %+v", got)

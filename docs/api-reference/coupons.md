@@ -20,8 +20,8 @@ Content-Type: application/json
 |------|------|------|------|
 | `type` | string | 是 | `discount`（折扣券，`rate` 为力度，9 折 = 90）或 `full_reduction`（满减券，`threshold`+`amount`） |
 | `rate` | int | 按类型 | discount 必填：折扣力度（1–99） |
-| `threshold` | int | 按类型 | full_reduction 必填：满减门槛（分） |
-| `amount` | int | 按类型 | full_reduction 必填：减免金额（分） |
+| `threshold` | number | 按类型 | full_reduction 必填：满减门槛（元） |
+| `amount` | number | 按类型 | full_reduction 必填：减免金额（元） |
 | `scope` | string | 是 | 适用范围：`all` / `course` / `data` / `cloud` / `product` |
 | `product_id` | string | 否 | scope=`product` 时必填：指定商品 |
 | `expires_at` | string | 是 | 过期时间（RFC3339） |

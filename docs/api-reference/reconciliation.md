@@ -11,11 +11,11 @@ GET /accounts/{id}/statement
 ```json
 {
   "account_id": "acc_3f2a...",
-  "opening_balance": 0,
-  "closing_balance": 10000,
+  "opening_balance": 0.00,
+  "closing_balance": 100.00,
   "entries": [
-    {"id": 1, "type": "recharge", "amount": 20000, "running_balance": 20000, "created_at": "..."},
-    {"id": 2, "type": "consume", "amount": 10000, "running_balance": 10000, "created_at": "..."}
+    {"id": 1, "type": "recharge", "amount": 200.00, "running_balance": 200.00, "created_at": "..."},
+    {"id": 2, "type": "consume", "amount": 100.00, "running_balance": 100.00, "created_at": "..."}
   ],
   "generated_at": "2026-08-03T01:00:00Z"
 }
@@ -59,7 +59,6 @@ Content-Type: multipart/form-data（字段名 file）
   "unmatched": [{"row": {"voucher_no": "GT-999", "amount_cents": 5000, "date": "2026-08-03"}, "reason": "未找到对应充值交易"}]
 }
 ```
-
 `unmatched.reason`：`未找到对应充值交易` / `金额不一致`。
 
 错误：`400`（CSV 格式非法）。

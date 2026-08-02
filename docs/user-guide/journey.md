@@ -29,7 +29,7 @@ Content-Type: application/json
 POST /accounts/{id}/recharges
 Content-Type: application/json
 
-{"amount": 20000, "voucher_no": "GT-001"}
+{"amount": 200.00, "voucher_no": "GT-001"}
 ```
 
 ## 3. 发放优惠券 / 代金券
@@ -50,13 +50,13 @@ Content-Type: application/json
 }
 ```
 
-满减券：`{"type": "full_reduction", "threshold": 10000, "amount": 2000, ...}`（应付 ≥ 门槛时减 `amount`）。
+满减券：`{"type": "full_reduction", "threshold": 100.00, "amount": 20.00, ...}`（应付 ≥ 门槛时减 `amount`）。
 
 ```http
 POST /accounts/{id}/vouchers
 Content-Type: application/json
 
-{"amount": 2000, "scope": "all", "expires_at": "2026-08-04T00:00:00Z", "batch_no": "GT-V-001"}
+{"amount": 20.00, "scope": "all", "expires_at": "2026-08-04T00:00:00Z", "batch_no": "GT-V-001"}
 ```
 
 ## 4. 结算扣费
@@ -71,7 +71,7 @@ Content-Type: application/json
   "order_id": "O-GT-1",
   "account_id": "acc_3f2a...",
   "scope": "course",
-  "amount": 10000
+  "amount": 100.00
 }
 ```
 
@@ -82,9 +82,9 @@ Content-Type: application/json
   "id": "O-GT-1",
   "status": "settled",
   "settle_detail": [
-    {"kind": "coupon", "ref_id": 1, "amount": 1000},
-    {"kind": "voucher", "ref_id": 1, "amount": 2000},
-    {"kind": "balance", "ref_id": 0, "amount": 7000}
+    {"kind": "coupon", "ref_id": 1, "amount": 10.00},
+    {"kind": "voucher", "ref_id": 1, "amount": 20.00},
+    {"kind": "balance", "ref_id": 0, "amount": 70.00}
   ]
 }
 ```
@@ -99,7 +99,7 @@ Content-Type: application/json
 POST /accounts/{id}/refunds
 Content-Type: application/json
 
-{"amount": 100000, "voucher_no": "SJ-R-001"}
+{"amount": 1000.00, "voucher_no": "SJ-R-001"}
 ```
 
 余额不足时返回 422，整体回滚。

@@ -17,7 +17,7 @@ Content-Type: application/json
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `amount` | int | 是 | 面值（分），正数 |
+| `amount` | number | 是 | 面值（元），正数 |
 | `scope` | string | 是 | 适用范围：`all` / `course` / `data` / `cloud` / `product` |
 | `product_id` | string | 否 | scope=`product` 时必填：指定商品 |
 | `expires_at` | string | 是 | 过期时间（RFC3339） |

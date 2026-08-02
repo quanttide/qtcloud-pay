@@ -121,7 +121,7 @@ make build && ./bin/provider-server -addr :8080 -channel wechat
 | GET | `/query/{order_id}` | 查询订单状态 |
 | POST | `/refund` | 申请退款 |
 
-金额单位：账本核心接口的 `amount` 均为整数分。
+金额单位：账本核心 API 的金额以**元**传输（两位小数数字，如 `99.99`），内部以整数分存储；`POST /reconcile/bank` 的 CSV 金额为分（`amount_cents`）。
 
 ## 测试
 

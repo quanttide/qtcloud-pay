@@ -29,6 +29,9 @@
 - 修复折扣券语义：rate 为折扣力度（9 折 = rate 90 = 省 10%），抵扣 = 应付 × (100 − rate) / 100；多张折扣券选力度最大（rate 最低）
 - 修复 SQLite 并发写锁：`app.Open` 对非 PostgreSQL 驱动限制连接池为单连接（`SetMaxOpenConns(1)`），消除文件库并发结算 `database is locked` → 500（Go `:memory:` 测试因自设单连接未暴露，Python 端到端并发用例才复现）
 
+### Changed
+- **金额传输改为元（两位小数数字）**：新增 `pkg/money.Cents`（JSON 元 ↔ 内部分，严格校验拒绝三位及以上小数）；transport 请求/响应金额字段统一经 `Cents` 转换，内部账本仍为整数分（service/repository 零改动）；`POST /reconcile/bank` CSV 保持分（`amount_cents`）；文档与三层测试（单测/itest/端到端）同步更新
+
 ## [0.0.1] - 2026-07-11
 
 ### Added

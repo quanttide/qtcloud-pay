@@ -8,7 +8,7 @@ from __future__ import annotations
 import threading
 import time
 
-from tests.api import ApiClient, future_expiry, unique
+from tests.api import ApiClient, _yuan, future_expiry, unique
 
 
 def test_x01_used_coupon_not_reusable(api: ApiClient) -> None:
@@ -95,7 +95,7 @@ def test_x04_concurrent_same_order(api: ApiClient) -> None:
         "order_id": unique("O-C-1"),
         "account_id": acc,
         "scope": "course",
-        "amount": 10000,
+        "amount": _yuan(10000),
     }
     results: list[int] = []
     lock = threading.Lock()

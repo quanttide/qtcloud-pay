@@ -6,8 +6,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
+	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
 )
 
 // Handler 对账 API。
@@ -33,10 +35,22 @@ func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	if discrepancies == nil {
-		discrepancies = []Discrepancy{}
+	dtos := make([]discrepancyDTO, 0, len(discrepancies))
+	for _, d := range discrepancies {
+		dtos = append(dtos, discrepancyDTO{
+			AccountID: d.AccountID,
+			Balance:   money.Cents(d.Balance),
+			Expected:  money.Cents(d.Expected),
+		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"discrepancies": discrepancies})
+	writeJSON(w, http.StatusOK, map[string]any{"discrepancies": dtos})
+}
+
+// discrepancyDTO 一致性差异响应（金额以元传输）。
+type discrepancyDTO struct {
+	AccountID string      `json:"account_id"`
+	Balance   money.Cents `json:"balance"`
+	Expected  money.Cents `json:"expected"`
 }
 
 func (h *Handler) handleBankFile(w http.ResponseWriter, r *http.Request) {
@@ -59,7 +73,40 @@ func (h *Handler) handleStatement(w http.ResponseWriter, r *http.Request) {
 		writeServiceError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, stmt)
+	writeJSON(w, http.StatusOK, toStatementDTO(stmt))
+}
+
+// statementDTO 账单响应（金额以元传输）。
+type statementDTO struct {
+	AccountID   string              `json:"account_id"`
+	Opening     money.Cents         `json:"opening_balance"`
+	Closing     money.Cents         `json:"closing_balance"`
+	Entries     []statementEntryDTO `json:"entries"`
+	GeneratedAt time.Time           `json:"generated_at"`
+}
+
+// statementEntryDTO 账单条目（金额以元传输）。
+type statementEntryDTO struct {
+	ID             int64       `json:"id"`
+	Type           string      `json:"type"`
+	Amount         money.Cents `json:"amount"`
+	Note           string      `json:"note,omitempty"`
+	CreatedAt      time.Time   `json:"created_at"`
+	RunningBalance money.Cents `json:"running_balance"`
+}
+
+func toStatementDTO(s *Statement) statementDTO {
+	entries := make([]statementEntryDTO, 0, len(s.Entries))
+	for _, e := range s.Entries {
+		entries = append(entries, statementEntryDTO{
+			ID: e.ID, Type: e.Type, Amount: money.Cents(e.Amount), Note: e.Note,
+			CreatedAt: e.CreatedAt, RunningBalance: money.Cents(e.RunningBalance),
+		})
+	}
+	return statementDTO{
+		AccountID: s.AccountID, Opening: money.Cents(s.Opening),
+		Closing: money.Cents(s.Closing), Entries: entries, GeneratedAt: s.GeneratedAt,
+	}
 }
 
 // writeJSON 以 JSON 格式写入响应。

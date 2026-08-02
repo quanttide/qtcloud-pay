@@ -76,7 +76,7 @@ func TestC03_MeteredConsumption(t *testing.T) {
 	}
 	want := []int64{10000, 7000, 7000, 7000, 2000}
 	for i, w := range want {
-		if int64(entries[i].(map[string]any)["running_balance"].(float64)) != w {
+		if centsOf(entries[i].(map[string]any)["running_balance"]) != w {
 			t.Errorf("running_balance[%d] = %v, want %d", i, entries[i], w)
 		}
 	}
