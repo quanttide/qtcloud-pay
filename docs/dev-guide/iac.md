@@ -62,25 +62,32 @@ export ALICLOUD_PROFILE=default
 ```sh
 cd manifests/terraform
 
-# 1. 初始化（拉取 provider）
-terraform init
+# 1. 初始化（拉取 provider + 连接 OSS 远程状态；需先创建状态桶）
+terraform init \
+  -backend-config="bucket=quanttide-terraform-state" \
+  -backend-config="key=qtcloud-pay/terraform.tfstate" \
+  -backend-config="region=cn-hangzhou"
 
 # 2. 填写参数
 cp terraform.tfvars.example terraform.tfvars   # 修改 db_password / image 等
 
 # 3. 预览与执行
-terraform plan
-terraform apply
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
 
 # 4. 查看输出（FC HTTP 直连地址等）
 terraform output
 ```
+
+## CI 部署
+
+推送 `provider/*` tag（如 `provider/v0.1.0`）触发 [.github/workflows/deploy-provider.yml](../../.github/workflows/deploy-provider.yml) 自动 `terraform apply`。所需 org secrets：`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY` / `DB_PASSWORD`。
 
 常用变量见 [variables.tf](../../manifests/terraform/variables.tf);待办与排期见 [TODO.md](../../manifests/terraform/TODO.md)。
 
 ## 注意事项
 
 - **数据库密码会明文落入 tfstate**:当前为最小化实现,后续应改用密钥管理/配置中心注入
-- **状态存储**:默认本地 `terraform.tfstate`(已 gitignore);多人协作时迁移到 OSS 远端后端(`providers.tf` 中已预留示例)
+- **状态存储**:已迁移到 OSS 远端后端(`quanttide-terraform-state`),初始化命令见上;多人协作无需再担心状态丢失
 - **镜像发布**:`image` 变量指向的容器镜像需已发布(Docker Hub 公开仓库或 ACR),FC 才能拉取
 - **环境划分**:dev 默认 `serverless_basic`(单节点);prod 切换 `serverless_standard`(高可用)

@@ -27,6 +27,18 @@
 ## 待办
 
 - [x] 按此方案设计 Terraform（IaC）：VPC + RDS Serverless + FC 服务
+- [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，init 需带 `-backend-config`）
 - [ ] 补齐 Dockerfile 并发布镜像（Dockerhub / 阿里云镜像仓库）
 - [ ] 环境划分（dev / prod）与配置管理（`DB_DRIVER` / `DATABASE_URL` 等，对齐 provider 技术方案）
 - [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`（系统层面预留，另行规划）
+
+## 使用
+
+```sh
+terraform init \
+  -backend-config="bucket=quanttide-terraform-state" \
+  -backend-config="key=qtcloud-pay/terraform.tfstate" \
+  -backend-config="region=cn-hangzhou"
+terraform plan -var-file=terraform.tfvars
+terraform apply -var-file=terraform.tfvars
+```

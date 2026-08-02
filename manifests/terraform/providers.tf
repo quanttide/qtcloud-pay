@@ -5,11 +5,11 @@ provider "alicloud" {
   region = var.region
 }
 
-# 状态存储：默认本地。多环境/多人协作时切换为 OSS 远端后端：
-# terraform {
-#   backend "oss" {
-#     bucket = "quanttide-terraform-state"
-#     key    = "qtcloud-pay/terraform.tfstate"
-#     region = "cn-hangzhou"
-#   }
-# }
+# 远程状态：OSS（本机与 CI 共用，CI 必须持久化状态）。初始化时通过 -backend-config 指定：
+#   terraform init \
+#     -backend-config="bucket=<OSS桶>" \
+#     -backend-config="key=qtcloud-pay/terraform.tfstate" \
+#     -backend-config="region=cn-hangzhou"
+terraform {
+  backend "oss" {}
+}

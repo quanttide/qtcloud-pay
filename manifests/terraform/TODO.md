@@ -2,8 +2,9 @@
 
 ## 上线前(阻塞项)
 
-- [ ] 配置阿里云凭证:本地 `~/.aliyun/config.json` + CI GitHub org secrets;RAM 用户授权 `PowerUserAccess` + `AliyunRAMFullAccess`
-- [ ] 编写 `Dockerfile` 构建 provider 镜像并发布(Docker Hub / ACR),更新 `image` 变量
+- [x] 配置阿里云凭证：本地 `~/.aliyun/config.json` + CI GitHub org secrets;RAM 用户授权 `PowerUserAccess` + `AliyunRAMFullAccess`
+- [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，已创建）
+- [ ] 编写 `Dockerfile` 构建 provider 镜像并发布（Docker Hub / ACR），更新 `image` 变量
 - [ ] 复制 `terraform.tfvars.example` → `terraform.tfvars` 填写真实值,执行 `terraform apply`
 - [ ] 上线验证:通过 `terraform output fc_http_url` 访问账本 API(如健康检查/创建账户)确认全链路可用
 

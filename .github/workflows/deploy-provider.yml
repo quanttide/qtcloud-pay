@@ -1,0 +1,70 @@
+# 部署 provider：推送 tag（provider/*，如 provider/v0.1.0）时，通过 Terraform apply 部署到阿里云。
+#
+# 所需 GitHub secrets（org 级）：
+#   - ALICLOUD_ACCESS_KEY / ALICLOUD_SECRET_KEY：RAM 用户 AccessKey（PowerUserAccess + AliyunRAMFullAccess）
+#   - DB_PASSWORD：RDS 数据库密码（注入 TF_VAR_db_password）
+#
+# 前置条件：
+#   - OSS 状态桶已存在（env.TF_STATE_BUCKET）；PowerUserAccess 已含 OSS 权限
+#   - 容器镜像已发布（env.TF_VAR_image）；镜像构建发布为后续 TODO（可在本 workflow 前追加 job）
+
+name: Deploy Provider
+
+on:
+  push:
+    tags:
+      - 'provider/**'
+  workflow_dispatch: # 手动触发（调试用）
+
+concurrency:
+  group: deploy-provider
+  cancel-in-progress: false
+
+env:
+  TF_VAR_region: cn-hangzhou
+  TF_VAR_environment: dev
+  TF_VAR_image: quanttide/qtcloud-pay:latest
+  TF_STATE_BUCKET: quanttide-terraform-state
+  TF_STATE_KEY: qtcloud-pay/terraform.tfstate
+
+jobs:
+  deploy:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 40 # RDS 创建耗时较长
+    permissions:
+      contents: read
+
+    env:
+      ALICLOUD_ACCESS_KEY: ${{ secrets.ALICLOUD_ACCESS_KEY }}
+      ALICLOUD_SECRET_KEY: ${{ secrets.ALICLOUD_SECRET_KEY }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.15.8' # 对齐本地环境
+
+      - name: Terraform Init（OSS 远程状态）
+        working-directory: manifests/terraform
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ env.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.TF_VAR_region }}"
+
+      - name: Terraform Validate
+        working-directory: manifests/terraform
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        working-directory: manifests/terraform
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: manifests/terraform
+        run: terraform apply -input=false -no-color tfplan
