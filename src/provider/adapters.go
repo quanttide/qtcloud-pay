@@ -2,17 +2,18 @@ package provider
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/alipay"
 	"github.com/quanttide/qtcloud-pay/src/provider/wechat"
 )
 
-// WechatPay 微信支付适配器
+// WechatPay 微信支付适配器。
 type WechatPay struct {
 	client *wechat.Client
 }
 
+// NewWechatPay 创建微信支付适配器。
 func NewWechatPay(cfg *wechat.Config) (*WechatPay, error) {
 	client, err := wechat.New(cfg)
 	if err != nil {
@@ -35,6 +36,7 @@ func (w *WechatPay) Pay(ctx context.Context, req *PayRequest) (*PayResponse, err
 		return nil, err
 	}
 	return &PayResponse{
+		// JSAPI 下单响应不含交易号，需通过 Query 或异步通知获取。
 		TradeID:     "",
 		PayURL:      "",
 		RawResponse: resp,
@@ -47,11 +49,11 @@ func (w *WechatPay) Query(ctx context.Context, orderID string) (*OrderStatus, er
 		return nil, err
 	}
 	return &OrderStatus{
-		TradeID:  resp.TransactionID,
-		OrderID:  resp.OutTradeNo,
-		Status:   resp.TradeState,
-		Amount:   float64(resp.Total) / 100,
-		PaidAt:   resp.SuccessTime,
+		TradeID: resp.TransactionID,
+		OrderID: resp.OutTradeNo,
+		Status:  resp.TradeState,
+		Amount:  float64(resp.Total) / 100,
+		PaidAt:  resp.SuccessTime,
 	}, nil
 }
 
@@ -73,11 +75,12 @@ func (w *WechatPay) Refund(ctx context.Context, req *RefundRequest) (*RefundResp
 	}, nil
 }
 
-// AlipayPay 支付宝适配器
+// AlipayPay 支付宝适配器。
 type AlipayPay struct {
 	client *alipay.Client
 }
 
+// NewAlipayPay 创建支付宝适配器。
 func NewAlipayPay(cfg *alipay.Config) (*AlipayPay, error) {
 	client, err := alipay.New(cfg)
 	if err != nil {
@@ -104,27 +107,29 @@ func (a *AlipayPay) Pay(ctx context.Context, req *PayRequest) (*PayResponse, err
 	}, nil
 }
 
+// alipayTradeStatus 支付宝交易状态到统一状态的映射。
+var alipayTradeStatus = map[string]string{
+	"WAIT_BUYER_PAY": "PENDING",
+	"TRADE_SUCCESS":  "SUCCESS",
+	"TRADE_FINISHED": "SUCCESS",
+	"TRADE_CLOSED":   "CLOSED",
+}
+
 func (a *AlipayPay) Query(ctx context.Context, orderID string) (*OrderStatus, error) {
 	resp, err := a.client.QueryOrder(ctx, orderID)
 	if err != nil {
 		return nil, err
 	}
-	tradeStatusMap := map[string]string{
-		"WAIT_BUYER_PAY": "PENDING",
-		"TRADE_SUCCESS":  "SUCCESS",
-		"TRADE_FINISHED": "SUCCESS",
-		"TRADE_CLOSED":   "CLOSED",
-	}
-	status := tradeStatusMap[resp.TradeStatus]
+	status := alipayTradeStatus[resp.TradeStatus]
 	if status == "" {
 		status = "UNKNOWN"
 	}
 	return &OrderStatus{
-		TradeID:  resp.TradeNo,
-		OrderID:  resp.OutTradeNo,
-		Status:   status,
-		Amount:   parseAmount(resp.TotalAmount),
-		PaidAt:   resp.PayTime,
+		TradeID: resp.TradeNo,
+		OrderID: resp.OutTradeNo,
+		Status:  status,
+		Amount:  parseAmount(resp.TotalAmount),
+		PaidAt:  resp.PayTime,
 	}, nil
 }
 
@@ -137,6 +142,7 @@ func (a *AlipayPay) Refund(ctx context.Context, req *RefundRequest) (*RefundResp
 	if err != nil {
 		return nil, err
 	}
+	// TODO: 支付宝退款响应无独立退款单号，暂以商户订单号代替；成功后固定返回 SUCCESS。
 	_ = resp
 	return &RefundResponse{
 		RefundID: req.OrderID,
@@ -144,12 +150,12 @@ func (a *AlipayPay) Refund(ctx context.Context, req *RefundRequest) (*RefundResp
 	}, nil
 }
 
+// parseAmount 解析支付宝金额字符串（元），解析失败返回 0。
 func parseAmount(s string) float64 {
-	var f float64
-	fmt.Sscanf(s, "%f", &f)
+	f, _ := strconv.ParseFloat(s, 64)
 	return f
 }
 
-// Ensure adapters implement Provider
+// 编译期断言适配器实现了 Provider 接口。
 var _ Provider = (*WechatPay)(nil)
 var _ Provider = (*AlipayPay)(nil)

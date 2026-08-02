@@ -44,7 +44,7 @@ func New(cfg *Config) (*Client, error) {
 		return nil, fmt.Errorf("alipay: new gopay client: %w", err)
 	}
 	gclient.ReturnUrl = cfg.ReturnURL
-		gclient.NotifyUrl = cfg.NotifyURL
+	gclient.NotifyUrl = cfg.NotifyURL
 	gclient.DebugSwitch = gopay.DebugOff
 	if cfg.PublicKey != "" {
 		gclient.AutoVerifySign([]byte(cfg.PublicKey))

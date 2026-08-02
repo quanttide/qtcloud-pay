@@ -15,6 +15,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -135,9 +136,6 @@ func TestPagePay_WithBody(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
-	}
-	if !strings.Contains(url.QueryEscape("课程描述内容"), url.QueryEscape("课程描述内容")) {
-		// body will be URL-encoded, just verify it's not empty
 	}
 	if !strings.Contains(urlStr, url.QueryEscape("高级课程")) {
 		t.Error("expected subject in params")
@@ -384,14 +382,7 @@ func sortParams(form url.Values) string {
 		}
 		keys = append(keys, k)
 	}
-	// bubble sort (no sort import)
-	for i := 0; i < len(keys); i++ {
-		for j := i + 1; j < len(keys); j++ {
-			if keys[i] > keys[j] {
-				keys[i], keys[j] = keys[j], keys[i]
-			}
-		}
-	}
+	sort.Strings(keys)
 	var pairs []string
 	for _, k := range keys {
 		pairs = append(pairs, k+"="+form.Get(k))

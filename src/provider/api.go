@@ -8,14 +8,14 @@ import (
 	"strings"
 )
 
-// Server 支付 API HTTP 服务
+// Server 支付 API HTTP 服务。
 type Server struct {
 	provider Provider
 	mux      *http.ServeMux
 	srv      *http.Server
 }
 
-// NewServer 创建 API 服务
+// NewServer 创建 API 服务。
 func NewServer(addr string, p Provider) *Server {
 	s := &Server{provider: p}
 	mux := http.NewServeMux()
@@ -27,29 +27,33 @@ func NewServer(addr string, p Provider) *Server {
 	return s
 }
 
-// Handler 返回 HTTP handler（用于测试）
+// Handler 返回 HTTP handler（用于测试）。
 func (s *Server) Handler() http.Handler { return s.mux }
 
-// Start 启动服务
+// Start 启动服务。
 func (s *Server) Start() error {
 	log.Printf("API server listening on %s", s.srv.Addr)
 	return s.srv.ListenAndServe()
 }
 
-// Close 关闭服务
+// Close 关闭服务。
 func (s *Server) Close() error { return s.srv.Close() }
 
-// Shutdown 优雅关闭
+// Shutdown 优雅关闭。
 func (s *Server) Shutdown(ctx context.Context) error {
 	return s.srv.Shutdown(ctx)
 }
 
+// writeJSON 以 JSON 格式写入响应。
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	if err := json.NewEncoder(w).Encode(v); err != nil {
+		log.Printf("write json response: %v", err)
+	}
 }
 
+// writeError 写入错误响应。内部错误细节只记录日志，不返回给客户端。
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
@@ -57,12 +61,13 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func (s *Server) handlePay(w http.ResponseWriter, r *http.Request) {
 	var req PayRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	resp, err := s.provider.Pay(r.Context(), &req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("pay: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -76,7 +81,8 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 	}
 	status, err := s.provider.Query(r.Context(), orderID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("query: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, status)
@@ -85,12 +91,13 @@ func (s *Server) handleQuery(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRefund(w http.ResponseWriter, r *http.Request) {
 	var req RefundRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	resp, err := s.provider.Refund(r.Context(), &req)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		log.Printf("refund: %v", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 	writeJSON(w, http.StatusOK, resp)

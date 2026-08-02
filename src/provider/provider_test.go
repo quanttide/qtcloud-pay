@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,9 +50,6 @@ func generateTestCertPEM(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Also need private key for wechat client
-	privDER, _ := x509.MarshalPKCS8PrivateKey(key)
-	_ = privDER
 	return string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 }
 
@@ -180,8 +178,8 @@ func TestWechatPay_Query(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
 			"transaction_id": "tx001", "out_trade_no": "ORD001",
-			"trade_state": "SUCCESS",
-			"amount":      map[string]any{"total": 9999, "payer_total": 9999},
+			"trade_state":  "SUCCESS",
+			"amount":       map[string]any{"total": 9999, "payer_total": 9999},
 			"success_time": "2025-07-11T10:00:00+08:00",
 		})
 	}))
@@ -242,7 +240,7 @@ func TestAlipayPay_Pay(t *testing.T) {
 	if resp.PayURL == "" {
 		t.Error("PayURL should not be empty")
 	}
-	if !contains(resp.PayURL, "ORD001") {
+	if !strings.Contains(resp.PayURL, "ORD001") {
 		t.Error("PayURL should contain order ID")
 	}
 }
@@ -251,13 +249,13 @@ func TestAlipayPay_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-				"alipay_trade_query_response": map[string]any{
-					"code": "10000", "msg": "Success",
-					"out_trade_no": "ORD001", "trade_no": "tx001",
-					"trade_status": "TRADE_SUCCESS", "total_amount": "99.99",
-				},
-				"sign": "",
-			})
+			"alipay_trade_query_response": map[string]any{
+				"code": "10000", "msg": "Success",
+				"out_trade_no": "ORD001", "trade_no": "tx001",
+				"trade_status": "TRADE_SUCCESS", "total_amount": "99.99",
+			},
+			"sign": "",
+		})
 	}))
 	defer ts.Close()
 
@@ -281,13 +279,13 @@ func TestAlipayPay_Query_UnknownStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-				"alipay_trade_query_response": map[string]any{
-					"code": "10000", "msg": "Success",
-					"out_trade_no": "ORD001", "trade_no": "tx001",
-					"trade_status": "WAIT_BUYER_PAY", "total_amount": "99.99",
-				},
-				"sign": "",
-			})
+			"alipay_trade_query_response": map[string]any{
+				"code": "10000", "msg": "Success",
+				"out_trade_no": "ORD001", "trade_no": "tx001",
+				"trade_status": "WAIT_BUYER_PAY", "total_amount": "99.99",
+			},
+			"sign": "",
+		})
 	}))
 	defer ts.Close()
 
@@ -308,13 +306,13 @@ func TestAlipayPay_Query_UnknownTradeStatus(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-				"alipay_trade_query_response": map[string]any{
-					"code": "10000", "msg": "Success",
-					"out_trade_no": "ORD001", "trade_no": "tx001",
-					"trade_status": "SOME_UNKNOWN_STATUS", "total_amount": "0.00",
-				},
-				"sign": "",
-			})
+			"alipay_trade_query_response": map[string]any{
+				"code": "10000", "msg": "Success",
+				"out_trade_no": "ORD001", "trade_no": "tx001",
+				"trade_status": "SOME_UNKNOWN_STATUS", "total_amount": "0.00",
+			},
+			"sign": "",
+		})
 	}))
 	defer ts.Close()
 
@@ -335,12 +333,12 @@ func TestAlipayPay_Refund(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-				"alipay_trade_refund_response": map[string]any{
-					"code": "10000", "msg": "Success",
-					"out_trade_no": "ORD001", "trade_no": "tx001",
-				},
-				"sign": "",
-			})
+			"alipay_trade_refund_response": map[string]any{
+				"code": "10000", "msg": "Success",
+				"out_trade_no": "ORD001", "trade_no": "tx001",
+			},
+			"sign": "",
+		})
 	}))
 	defer ts.Close()
 
@@ -492,16 +490,6 @@ func (rt *providerTransport) RoundTrip(req *http.Request) (*http.Response, error
 	return http.DefaultTransport.RoundTrip(newReq)
 }
 
-func contains(s, substr string) bool {
-	// simple contains check
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
-
 func BenchmarkWechatPay(b *testing.B) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"prepay_id": "wxPREPAY123"})
@@ -524,7 +512,7 @@ func BenchmarkWechatPay(b *testing.B) {
 	p, err := NewWechatPay(&wechat.Config{
 		AppID: "wx123", MchID: "mch123",
 		APIv3Key: "test-api-v3-key-1234567890abcd",
-		MchKey: privPEM, MchCert: certPEM,
+		MchKey:   privPEM, MchCert: certPEM,
 		NotifyURL: "https://example.com/notify",
 	})
 	if err != nil {

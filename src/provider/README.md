@@ -33,8 +33,8 @@ provider/
 ├── alipay/
 │   └── alipay.go     ← 支付宝网页支付实现
 ├── go.mod
-├── README.md
-└── ROADMAP.md
+├── go.sum
+└── README.md
 ```
 
 ## 使用

@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/aes"
-	"crypto/cipher"  //nolint:revive
+	"crypto/cipher"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -44,13 +44,13 @@ var (
 	}()
 
 	testConfigObj = &Config{
-			AppID:     "wx1234567890abcdef",
-			MchID:     "1234567890",
-			APIv3Key:  "test-api-v3-key-1234567890abcdef", // exactly 32 bytes for AES-256
-			MchKey:    testKeyPEM,
-			MchCert:   testCertPEM,
-			NotifyURL: "https://example.com/notify",
-		}
+		AppID:     "wx1234567890abcdef",
+		MchID:     "1234567890",
+		APIv3Key:  "test-api-v3-key-1234567890abcdef", // exactly 32 bytes for AES-256
+		MchKey:    testKeyPEM,
+		MchCert:   testCertPEM,
+		NotifyURL: "https://example.com/notify",
+	}
 )
 
 type mockTransport struct {
@@ -492,6 +492,3 @@ func TestSetTransportNoop(t *testing.T) {
 	c, _ := New(testConfigObj)
 	c.SetTransport(nil)
 }
-
-// ensure gwx import is used
-var _ = gwx.TransactionId

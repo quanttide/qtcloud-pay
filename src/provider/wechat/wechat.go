@@ -138,16 +138,11 @@ func (c *Client) ParseNotify(body []byte, headers http.Header) (*NotifyResult, e
 		TradeState:    result.TradeState,
 		TradeType:     result.TradeType,
 		SuccessTime:   result.SuccessTime,
-		Payer: struct {
-			OpenID string `json:"openid"`
-		}{
+		Payer: NotifyPayer{
 			OpenID: result.Payer.Openid,
 		},
-		Amount: struct {
-			Total     int `json:"total"`
-			PayerTotal int `json:"payer_total"`
-		}{
-			Total:     result.Amount.Total,
+		Amount: NotifyAmount{
+			Total:      result.Amount.Total,
 			PayerTotal: result.Amount.PayerTotal,
 		},
 	}, nil
@@ -240,19 +235,26 @@ type OrderResult struct {
 	SuccessTime   string
 }
 
+// NotifyPayer 支付通知中的付款人信息。
+type NotifyPayer struct {
+	OpenID string `json:"openid"`
+}
+
+// NotifyAmount 支付通知中的金额信息（单位：分）。
+type NotifyAmount struct {
+	Total      int `json:"total"`
+	PayerTotal int `json:"payer_total"`
+}
+
+// NotifyResult 支付结果通知。
 type NotifyResult struct {
-	TransactionID string `json:"transaction_id"`
-	OutTradeNo    string `json:"out_trade_no"`
-	TradeState    string `json:"trade_state"`
-	TradeType     string `json:"trade_type"`
-	SuccessTime   string `json:"success_time"`
-	Payer         struct {
-		OpenID string `json:"openid"`
-	} `json:"payer"`
-	Amount struct {
-		Total     int `json:"total"`
-		PayerTotal int `json:"payer_total"`
-	} `json:"amount"`
+	TransactionID string       `json:"transaction_id"`
+	OutTradeNo    string       `json:"out_trade_no"`
+	TradeState    string       `json:"trade_state"`
+	TradeType     string       `json:"trade_type"`
+	SuccessTime   string       `json:"success_time"`
+	Payer         NotifyPayer  `json:"payer"`
+	Amount        NotifyAmount `json:"amount"`
 }
 
 type RefundRequest struct {
