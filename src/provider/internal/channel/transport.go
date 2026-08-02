@@ -19,12 +19,18 @@ type Server struct {
 func NewServer(addr string, p Provider) *Server {
 	s := &Server{provider: p}
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /pay", s.handlePay)
-	mux.HandleFunc("GET /query/{order_id}", s.handleQuery)
-	mux.HandleFunc("POST /refund", s.handleRefund)
+	RegisterRoutes(mux, p)
 	s.mux = mux
 	s.srv = &http.Server{Addr: addr, Handler: mux}
 	return s
+}
+
+// RegisterRoutes 在给定 mux 上注册渠道 API 路由（供服务端统一挂载）。
+func RegisterRoutes(mux *http.ServeMux, p Provider) {
+	s := &Server{provider: p}
+	mux.HandleFunc("POST /pay", s.handlePay)
+	mux.HandleFunc("GET /query/{order_id}", s.handleQuery)
+	mux.HandleFunc("POST /refund", s.handleRefund)
 }
 
 // Handler 返回 HTTP handler（用于测试）。
