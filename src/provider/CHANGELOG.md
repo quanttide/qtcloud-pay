@@ -1,5 +1,16 @@
 # CHANGELOG
 
+## [0.1.0-alpha.2] - 2026-08-03
+
+### Changed
+- 部署选型落地：环境默认 `prod`，数据库账号 `qtcloud_pay`；VPC/RDS 归入系统级 `quanttide` 命名与资源组（命名规则见 docs/dev-guide/iac.md）
+- Docker 镜像改名 `qtcloud-pay-provider`（本地 Makefile 标签同步，为 cli/studio 镜像预留命名空间）
+- 生产保护：RDS/VPC `prevent_destroy` + RDS 删除保护、OSS 状态桶版本控制、deploy 挂 `production` 环境（可配 Required reviewers）
+
+### Fixed
+- CI 部署链路：阿里云凭证 secret 改用 `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET`；镜像名改经 `GITHUB_ENV` 传递（job output 含 secret 会被 GitHub 脱敏置空）
+- 创建 RDS PostgreSQL 服务关联角色（`AliyunServiceRoleForRdsPgsql`），解决首次开通 `ServiceLinkedRole.NotExist`
+
 ## [0.1.0-alpha.1] - 2026-08-03
 
 ### Added
