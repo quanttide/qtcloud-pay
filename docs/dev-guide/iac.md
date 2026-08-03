@@ -159,7 +159,7 @@ terraform output
 
 镜像**双通道发布**（Docker Hub + ACR），部署用镜像固定指向 ACR（FC 中国区拉不到 Docker Hub）；ACR 命名空间/仓库为一次性前置（个人版资源在 provider 中已弃用，不进 IaC，见「0.5 创建 ACR 命名空间与镜像仓库」）。
 
-常用变量见 [variables.tf](../../manifests/terraform/variables.tf);待办与排期见 [TODO.md](../../manifests/terraform/TODO.md)。
+常用变量见 [variables.tf](../../manifests/terraform/variables.tf);待办与排期见 [TODO.md](../../manifests/terraform/TODO.md)。workflow 的架构、凭证体系与踩坑记录见 [ci.md](./ci.md)。
 
 ## 注意事项
 
