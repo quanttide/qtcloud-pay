@@ -12,7 +12,7 @@
 #
 # 前置条件：
 #   - OSS 状态桶已存在（env.TF_STATE_BUCKET）；PowerUserAccess 已含 OSS 权限
-#   - ACR 命名空间/仓库由本 workflow 幂等创建（PUBLIC，FC 可直拉），无需人工前置
+#   - ACR 个人版实例已开通（控制台 cr.console.aliyun.com 首次进入自动开通）；命名空间/仓库由本 workflow 幂等创建（实例版 API，PUBLIC）
 
 name: Deploy Provider
 
@@ -39,6 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+      # aliyun CLI 凭证（新变量名；terraform provider 用 ALICLOUD_ACCESS_KEY / ALICLOUD_SECRET_KEY）
+      ALICLOUD_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      ALICLOUD_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      ALICLOUD_REGION_ID: cn-hangzhou
 
     steps:
       - name: Checkout
@@ -60,23 +64,34 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
 
-      # 配置 aliyun CLI（仅用于下方幂等创建 ACR 命名空间/仓库）
+      # 配置 aliyun CLI（仅用于下方幂等创建 ACR 命名空间/仓库）；
+      # 注意：aliyun/aliyun-cli-action@v1 的 access-key-id 等输入无效（只认 version），
+      # 必须用 setup-aliyun-cli-action + 环境变量注入凭证
       - name: Configure aliyun CLI
-        uses: aliyun/aliyun-cli-action@v1
+        uses: aliyun/setup-aliyun-cli-action@v1
         with:
-          access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
-          access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
-          region-id: ${{ env.TF_VAR_region }}
+          version: latest
 
-      # ACR 命名空间/仓库幂等创建（个人版资源在 terraform provider 中已弃用（v1.276.0 起），改由 CI 保证存在；已存在时返回错误，忽略）
+      # ACR 命名空间/仓库幂等创建（实例版 API，失败即报错不吞）
       - name: Ensure ACR Namespace & Repo
         run: |
-          aliyun cr CreateNamespace --Namespace "${{ env.ACR_NAMESPACE }}" --NamespaceStatus PUBLIC >/dev/null 2>&1 || echo "namespace already exists"
-          aliyun cr CreateRepository \
-            --Namespace "${{ env.ACR_NAMESPACE }}" \
-            --RepoName qtcloud-pay-provider \
-            --RepoType PUBLIC \
-            --Summary "qtcloud-pay 账本核心 API 镜像" >/dev/null 2>&1 || echo "repo already exists"
+          set -euo pipefail
+          # 1. 取个人版实例 ID（当前 aliyun CLI 的 cr 为实例版 API，CreateNamespace/CreateRepository 必填 InstanceId）
+          INSTANCE_ID="$(aliyun cr ListInstance --InstanceType acr_personal --RegionId "${ALICLOUD_REGION_ID}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['instances'][0]['instanceId'] if d.get('instances') else '')")"
+          if [ -z "${INSTANCE_ID}" ]; then
+            echo "::error::ACR 个人版实例不存在（ListInstance 为空）。请先在控制台开通容器镜像服务个人版：https://cr.console.aliyun.com/ ，或确认 ALIYUN_ACCESS_KEY_ID/SECRET 与 ACR 登录凭证同属一个主账号"
+            exit 1
+          fi
+          echo "ACR instance: ${INSTANCE_ID}"
+          # 2. 命名空间：GetNamespace 查存在，不存在才创建，创建失败即 fail
+          if ! aliyun cr GetNamespace --InstanceId "${INSTANCE_ID}" --NamespaceName "${ACR_NAMESPACE}" >/dev/null 2>&1; then
+            aliyun cr CreateNamespace --InstanceId "${INSTANCE_ID}" --NamespaceName "${ACR_NAMESPACE}" --DefaultVisibility PUBLIC --AutoCreate false
+          fi
+          # 3. 仓库：同上
+          if ! aliyun cr GetRepository --InstanceId "${INSTANCE_ID}" --NamespaceName "${ACR_NAMESPACE}" --RepoName qtcloud-pay-provider >/dev/null 2>&1; then
+            aliyun cr CreateRepository --InstanceId "${INSTANCE_ID}" --NamespaceName "${ACR_NAMESPACE}" --RepoName qtcloud-pay-provider --RepoType PUBLIC --Summary "qtcloud-pay 账本核心 API 镜像"
+          fi
+          echo "ACR namespace/repo OK"
 
       - name: Login to ACR
         uses: docker/login-action@v3

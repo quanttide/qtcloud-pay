@@ -67,20 +67,20 @@ aliyun rds CheckServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole Ali
 
 ### 0.5 ACR 命名空间与镜像仓库
 
-FC 中国区无法拉取 Docker Hub 镜像（registry not reachable），部署镜像固定走同地域 ACR 公开仓库。ACR 个人版（免费）的命名空间/仓库在 terraform provider 中对应资源已弃用（v1.276.0 起，建议迁移企业版），因此不进 IaC，由 **CI 在构建时幂等创建**（见 deploy-provider.yml「Ensure ACR Namespace & Repo」），一般无需人工操作。
+FC 中国区无法拉取 Docker Hub 镜像（registry not reachable），部署镜像固定走同地域 ACR 公开仓库。ACR 个人版（免费）的命名空间/仓库在 terraform provider 中对应资源已弃用（v1.276.0 起，建议迁移企业版），因此不进 IaC，由 **CI 在构建时幂等创建**（见 deploy-provider.yml「Ensure ACR Namespace & Repo」）。
 
-如需手动创建（如先在控制台建好、或排查 CI 失败）：
+前置：**ACR 个人版实例需已开通**（控制台 [cr.console.aliyun.com](https://cr.console.aliyun.com/) 首次进入自动开通；`aliyun cr ListInstance --InstanceType acr_personal` 为空即未开通）。
+
+> 踩坑记录：当前 aliyun CLI（3.4.x）的 `cr` 产品为**实例版 API**——`CreateNamespace`/`CreateRepository` 必填 `--InstanceId`（个人版实例形如 `cri-xxx`），老版参数（`--Namespace`/`--NamespaceStatus`/`--RepoName`）必报错；且 `aliyun/aliyun-cli-action@v1` 的凭证输入无效，须用 `aliyun/setup-aliyun-cli-action` + 环境变量（`ALICLOUD_ACCESS_KEY_ID` / `ALICLOUD_ACCESS_KEY_SECRET` / `ALICLOUD_REGION_ID`）。
+
+如需手动创建（排查 CI 失败时兜底）：
 
 ```sh
+INSTANCE_ID=$(aliyun cr ListInstance --InstanceType acr_personal --RegionId cn-hangzhou | ...)  # 取 instanceId
 # 命名空间（quanttide 体系共享，已存在则跳过）
-aliyun cr CreateNamespace --Namespace quanttide --NamespaceStatus PUBLIC
-
+aliyun cr CreateNamespace --InstanceId $INSTANCE_ID --NamespaceName quanttide --DefaultVisibility PUBLIC
 # 镜像仓库（PUBLIC：FC 无需凭证直拉；应用级，按组件命名）
-aliyun cr CreateRepository \
-  --Namespace quanttide \
-  --RepoName qtcloud-pay-provider \
-  --RepoType PUBLIC \
-  --Summary "qtcloud-pay 账本核心 API 镜像"
+aliyun cr CreateRepository --InstanceId $INSTANCE_ID --NamespaceName quanttide --RepoName qtcloud-pay-provider --RepoType PUBLIC --Summary "qtcloud-pay 账本核心 API 镜像"
 ```
 
 > 说明：后续如升级 ACR 企业版（需实例，付费），可将命名空间/仓库改回 IaC 管理（`alicloud_cr_ee_namespace` / `alicloud_cr_ee_repo`）。
