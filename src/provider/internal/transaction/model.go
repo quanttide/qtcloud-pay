@@ -39,3 +39,18 @@ func (t *Transaction) AffectsBalance() bool {
 func (t *Transaction) SignedAmount() int64 {
 	return ledger.SignedAmount(t.Type, t.Amount)
 }
+
+// Contract 返回工具库账本契约视图（跨应用流转的统一形状，见 pkg/ledger）。
+func (t *Transaction) Contract() ledger.Transaction {
+	return ledger.Transaction{
+		ID:             t.ID,
+		AccountID:      t.AccountID,
+		Type:           t.Type,
+		Amount:         t.Amount,
+		BalanceAfter:   t.BalanceAfter,
+		OrderID:        t.OrderID,
+		IdempotencyKey: t.IdempotencyKey,
+		Note:           t.Note,
+		CreatedAt:      t.CreatedAt,
+	}
+}

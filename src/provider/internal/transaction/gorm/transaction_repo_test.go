@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/ledger"
 )
 
 func setupDB(t *testing.T) *gorm.DB {
@@ -71,6 +72,42 @@ func TestTransactionRepo(t *testing.T) {
 	sum, err := repo.SumByAccount(db, "acc_1")
 	if err != nil || sum != 50 {
 		t.Fatalf("SumByAccount = %d, %v; want 50 (100 − 30 − 20)", sum, err)
+	}
+}
+
+// TestSumByAccount_MatchesLedgerBalance 等价性：SQL 聚合（SumByAccount）必须与
+// ledger.Balance（余额 = Σ带符号交易的唯一推导规则）结果一致，防两处实现漂移。
+func TestSumByAccount_MatchesLedgerBalance(t *testing.T) {
+	db := setupDB(t)
+	repo := NewTransactionRepo()
+
+	txs := []*transaction.Transaction{
+		{AccountID: "acc_1", Type: transaction.TypeRecharge, Amount: 10000, IdempotencyKey: "r1"},
+		{AccountID: "acc_1", Type: transaction.TypeConsume, Amount: 3000, IdempotencyKey: "c1"},
+		{AccountID: "acc_1", Type: transaction.TypeRefund, Amount: 2000, IdempotencyKey: "f1"},
+		{AccountID: "acc_1", Type: transaction.TypeIssue, Amount: 6000, IdempotencyKey: "i1"},
+		{AccountID: "acc_1", Type: transaction.TypeRedeem, Amount: 500, IdempotencyKey: "rd1"},
+	}
+	for _, tx := range txs {
+		if err := repo.Create(db, tx); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	sum, err := repo.SumByAccount(db, "acc_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	all, err := repo.ListAllByAccount(db, "acc_1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	contracts := make([]ledger.Transaction, 0, len(all))
+	for i := range all {
+		contracts = append(contracts, all[i].Contract())
+	}
+	if got := ledger.Balance(contracts); got != sum {
+		t.Errorf("ledger.Balance = %d, SumByAccount = %d；两处余额推导必须一致", got, sum)
 	}
 }
 

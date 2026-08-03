@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -14,6 +13,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/idempotency"
 )
 
 var (
@@ -134,13 +134,17 @@ func (s *Service) Settle(ctx context.Context, req *SettleRequest) (*Order, error
 
 		// 账本：余额部分一条消费交易，每张券一条核销交易
 		if balancePaid > 0 {
+			key, err := idempotency.Key(idempotency.Settle, req.OrderID)
+			if err != nil {
+				return err
+			}
 			if err := s.txSvc.Append(ctx, tx, &transaction.Transaction{
 				AccountID:      req.AccountID,
 				Type:           transaction.TypeConsume,
 				Amount:         balancePaid,
 				BalanceAfter:   acc.Balance,
 				OrderID:        req.OrderID,
-				IdempotencyKey: "settle:" + req.OrderID,
+				IdempotencyKey: key,
 			}); err != nil {
 				return err
 			}
@@ -149,12 +153,16 @@ func (s *Service) Settle(ctx context.Context, req *SettleRequest) (*Order, error
 			if d.Kind != billing.KindCoupon && d.Kind != billing.KindVoucher {
 				continue
 			}
+			key, err := idempotency.SettleRedeemKey(req.OrderID, d.Kind, d.RefID)
+			if err != nil {
+				return err
+			}
 			if err := s.txSvc.Append(ctx, tx, &transaction.Transaction{
 				AccountID:      req.AccountID,
 				Type:           transaction.TypeRedeem,
 				Amount:         d.Amount,
 				OrderID:        req.OrderID,
-				IdempotencyKey: fmt.Sprintf("settle:%s:redeem:%s:%d", req.OrderID, d.Kind, d.RefID),
+				IdempotencyKey: key,
 			}); err != nil {
 				return err
 			}

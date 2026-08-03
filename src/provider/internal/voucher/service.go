@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/idempotency"
 )
 
 var (
@@ -50,8 +51,11 @@ func (s *Service) Issue(ctx context.Context, req *IssueRequest) error {
 	if err := validateIssue(req); err != nil {
 		return err
 	}
-	key := "issue:voucher:" + req.BatchNo
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	key, err := idempotency.Key(idempotency.IssueVoucher, req.BatchNo)
+	if err != nil {
+		return err
+	}
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {
 			return err

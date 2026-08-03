@@ -13,6 +13,7 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/idempotency"
 )
 
 // ErrInvalidCSV 银行流水 CSV 格式不合法。
@@ -61,7 +62,12 @@ func (s *Service) ReconcileBankFile(ctx context.Context, r io.Reader) (*BankRepo
 	}
 	report := &BankReport{Total: len(rows)}
 	for _, row := range rows {
-		tx, err := s.txSvc.GetByKey(ctx, s.db, "recharge:"+row.VoucherNo)
+		key, err := idempotency.Key(idempotency.Recharge, row.VoucherNo)
+		if err != nil {
+			report.Unmatched = append(report.Unmatched, BankUnmatch{Row: row, Reason: "无效凭证号"})
+			continue
+		}
+		tx, err := s.txSvc.GetByKey(ctx, s.db, key)
 		if errors.Is(err, transaction.ErrNotFound) {
 			report.Unmatched = append(report.Unmatched, BankUnmatch{Row: row, Reason: "未找到对应充值交易"})
 			continue

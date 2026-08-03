@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/idempotency"
 )
 
 var (
@@ -100,8 +101,11 @@ func (s *Service) Recharge(ctx context.Context, accountID string, amount int64, 
 	if voucherNo == "" {
 		return ErrInvalidRecharge
 	}
-	key := "recharge:" + voucherNo
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	key, err := idempotency.Key(idempotency.Recharge, voucherNo)
+	if err != nil {
+		return err
+	}
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {
 			return err
@@ -145,8 +149,11 @@ func (s *Service) Refund(ctx context.Context, accountID string, amount int64, vo
 	if voucherNo == "" {
 		return ErrInvalidRefund
 	}
-	key := "refund:" + voucherNo
-	err := s.db.Transaction(func(tx *gorm.DB) error {
+	key, err := idempotency.Key(idempotency.Refund, voucherNo)
+	if err != nil {
+		return err
+	}
+	err = s.db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {
 			return err
