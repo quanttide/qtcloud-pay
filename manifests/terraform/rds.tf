@@ -1,58 +1,21 @@
-# RDS PostgreSQL 服务关联角色（AliyunServiceRoleForRdsPgsqlOnEcs）为账号级一次性前置，
-# 已创建。如需在新账号复现：
-#   aliyun rds CreateServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole AliyunServiceRoleForRdsPgsqlOnEcs
-# 详见 docs/dev-guide/iac.md「环境准备」
-
-# 系统级共享 RDS PostgreSQL Serverless（按量计费、自动暂停；单节点 serverless_basic）
-# 实例为 quanttide 体系共享（多应用共用一个实例，各自独立数据库）；qtcloud-pay 的应用库见下方 database 资源
-resource "alicloud_db_instance" "this" {
-  engine                 = "PostgreSQL"
-  engine_version         = var.db_engine_version
-  category               = var.db_category
-  # Serverless 实例计费方式必须为 Serverless（Postpaid/Prepaid 是非法销售组件）
-  instance_charge_type   = "Serverless"
-  instance_type          = "pg.n2.serverless.1c"
-  instance_storage         = 20
-  db_instance_storage_type = "cloud_essd"
-  vswitch_id               = alicloud_vswitch.this.id
-  port                     = "5432"
-  # 白名单：仅允许 VPC 交换机网段内网访问（FC 通过 VPC 访问 RDS 内网地址）
-  security_ips = [var.vswitch_cidr]
-  serverless_config {
-    min_capacity = var.db_min_capacity
-    max_capacity = var.db_max_capacity
-    auto_pause   = true
-    switch_force = false
-  }
-  instance_name     = local.name_prefix
-  resource_group_id = local.resource_group_id
-  # 生产保护：删除保护 + prevent_destroy，防止误删/误 destroy
-  deletion_protection = true
-  lifecycle {
-    prevent_destroy = true
-  }
-  tags = {
-    project     = var.project
-    environment = var.environment
-  }
-}
-
+# 应用数据库：创建在系统级共享 RDS 实例上（实例本身由 quanttide-platform 管理）
 resource "alicloud_db_database" "this" {
-  instance_id    = alicloud_db_instance.this.id
+  instance_id    = data.terraform_remote_state.platform.outputs.rds_instance_id
   data_base_name = var.db_name
   character_set  = "UTF8"
 }
 
 resource "alicloud_db_account" "this" {
-  db_instance_id   = alicloud_db_instance.this.id
+  db_instance_id   = data.terraform_remote_state.platform.outputs.rds_instance_id
   account_name     = var.db_username
   account_password = var.db_password
   account_type     = "Normal"
 }
 
 resource "alicloud_db_account_privilege" "this" {
-  instance_id  = alicloud_db_instance.this.id
+  instance_id  = data.terraform_remote_state.platform.outputs.rds_instance_id
   account_name = alicloud_db_account.this.account_name
-  privilege    = "ReadWrite"
-  db_names     = [alicloud_db_database.this.data_base_name]
+  # RDS PostgreSQL 仅支持 DBOwner（数据库所有者），ReadWrite 为 MySQL 专有
+  privilege = "DBOwner"
+  db_names  = [alicloud_db_database.this.data_base_name]
 }

@@ -30,17 +30,18 @@ resource "alicloud_fcv3_function" "this" {
   description       = "qtcloud-pay 账本核心 API"
   runtime           = "custom-container"
   handler           = "index.handler" # custom-container 必填占位，实际由容器监听端口决定
-  cpu               = 0.5
-  memory_size       = var.fc_memory
-  timeout           = var.fc_timeout
-  internet_access   = true
-  role              = alicloud_ram_role.fc.arn
-  resource_group_id = local.resource_group_id
+  cpu              = 0.5
+  memory_size      = var.fc_memory
+  disk_size        = 512 # FC 3.0 必填（MB）
+  timeout          = var.fc_timeout
+  internet_access  = true
+  role             = alicloud_ram_role.fc.arn
+  resource_group_id = data.terraform_remote_state.platform.outputs.resource_group_id
 
   vpc_config {
-    vpc_id            = alicloud_vpc.this.id
-    vswitch_ids       = [alicloud_vswitch.this.id]
-    security_group_id = alicloud_security_group.this.id
+    vpc_id            = data.terraform_remote_state.platform.outputs.vpc_id
+    vswitch_ids       = [data.terraform_remote_state.platform.outputs.vswitch_id]
+    security_group_id = data.terraform_remote_state.platform.outputs.security_group_id
   }
 
   custom_container_config {
@@ -52,7 +53,7 @@ resource "alicloud_fcv3_function" "this" {
   # 注意：密码会以明文落入 tfstate，生产环境建议改用 FC 配置中心/密钥管理注入
   environment_variables = {
     DB_DRIVER    = "postgres"
-    DATABASE_URL = "postgres://${alicloud_db_account.this.account_name}:${var.db_password}@${alicloud_db_instance.this.connection_string}:${alicloud_db_instance.this.port}/${alicloud_db_database.this.data_base_name}?sslmode=disable"
+    DATABASE_URL = "postgres://${alicloud_db_account.this.account_name}:${var.db_password}@${data.terraform_remote_state.platform.outputs.rds_connection_string}:${data.terraform_remote_state.platform.outputs.rds_port}/${alicloud_db_database.this.data_base_name}?sslmode=disable"
   }
 
   tags = {

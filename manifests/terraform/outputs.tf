@@ -1,6 +1,6 @@
 output "rds_connection_string" {
-  description = "RDS 内网连接地址（已由 FC 环境变量 DATABASE_URL 注入，无需手动使用）"
-  value       = alicloud_db_instance.this.connection_string
+  description = "系统级共享 RDS 内网连接地址（由 quanttide-platform 管理，已注入 FC 环境变量）"
+  value       = data.terraform_remote_state.platform.outputs.rds_connection_string
 }
 
 output "fc_function_name" {
