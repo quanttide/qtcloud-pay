@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [0.1.0-alpha.3] - 2026-08-03
+
+### Fixed
+- RDS 服务关联角色修正：正确名称 `AliyunServiceRoleForRdsPgsqlOnEcs`（rds 产品 API），已创建并改为文档化一次性前置（不再由 terraform 管理，见 docs/dev-guide/iac.md）
+
+### Changed
+- 移除 workflow_dispatch 手动触发：部署仅由 `provider/*` tag 驱动（生产保护）
+
 ## [0.1.0-alpha.2] - 2026-08-03
 
 ### Changed
