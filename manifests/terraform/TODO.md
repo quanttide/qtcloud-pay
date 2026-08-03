@@ -19,5 +19,5 @@
 ## 后续(P2)
 
 - [ ] **OIDC 联邦升级**:RAM 角色信任 GitHub OIDC,workflow 不再需要 Secret Key,CI 不落任何长期凭证
-- [ ] 环境划分 prod:RDS 系列切 `serverless_standard`(高可用),权限收敛为最小策略集
+- [ ] 权限收敛为最小策略集
 - [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`(系统层面预留,另行规划)

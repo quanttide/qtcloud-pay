@@ -53,7 +53,7 @@ variable "db_engine_version" {
 }
 
 variable "db_category" {
-  description = "RDS 系列：serverless_basic（单节点，dev） / serverless_standard（高可用，prod）"
+  description = "RDS 系列：serverless_basic（单节点）"
   type        = string
   default     = "serverless_basic"
 }

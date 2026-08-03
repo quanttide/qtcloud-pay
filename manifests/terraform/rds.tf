@@ -1,4 +1,4 @@
-# RDS PostgreSQL Serverless（按量计费、自动暂停；dev 用基础版，prod 建议 serverless_standard 高可用）
+# RDS PostgreSQL Serverless（按量计费、自动暂停；单节点 serverless_basic）
 resource "alicloud_db_instance" "this" {
   engine                   = "PostgreSQL"
   engine_version           = var.db_engine_version
