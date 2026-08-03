@@ -73,7 +73,7 @@ variable "db_max_capacity" {
 variable "image" {
   description = "FC 容器镜像（需可公开拉取：Docker Hub 公开仓库或 ACR 公开镜像；私有 ACR 需控制台配置授权）"
   type        = string
-  default     = "quanttide/qtcloud-pay:latest"
+  default     = "quanttide/qtcloud-pay-provider:latest"
 }
 
 variable "fc_memory" {

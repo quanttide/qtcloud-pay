@@ -8,7 +8,7 @@
 #
 # 前置条件：
 #   - OSS 状态桶已存在（env.TF_STATE_BUCKET）；PowerUserAccess 已含 OSS 权限
-#   - Docker Hub 账号对 <用户名>/qtcloud-pay 仓库有推送权限
+#   - Docker Hub 账号对 <用户名>/qtcloud-pay-provider 仓库有推送权限
 
 name: Deploy Provider
 
@@ -66,7 +66,7 @@ jobs:
           push: true
           tags: |
             ${{ steps.image.outputs.name }}
-            ${{ secrets.DOCKERHUB_USERNAME }}/qtcloud-pay:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/qtcloud-pay-provider:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -95,7 +95,7 @@ jobs:
           else
             TAG="latest"
           fi
-          echo "TF_VAR_image=${DOCKERHUB_USERNAME}/qtcloud-pay:${TAG}" >> "$GITHUB_ENV"
+          echo "TF_VAR_image=${DOCKERHUB_USERNAME}/qtcloud-pay-provider:${TAG}" >> "$GITHUB_ENV"
         env:
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
 

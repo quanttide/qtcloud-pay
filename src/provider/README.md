@@ -103,7 +103,7 @@ make docker-run
 # 生产：环境变量注入（见上文配置说明），PostgreSQL 或 SQLite 均可
 # docker run -d -p 8080:8080 \
 #   -e DB_DRIVER=postgres -e DATABASE_URL=postgres://user:pass@host:5432/pay \
-#   qtcloud-pay/provider:latest -addr :8080
+#   qtcloud-pay-provider:latest -addr :8080
 ```
 
 > 镜像基于 alpine（musl libc）：`mattn/go-sqlite3` 依赖 CGO，构建阶段已内置 gcc 工具链；运行时以非 root 用户（`app`）执行。

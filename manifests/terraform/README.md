@@ -28,7 +28,7 @@
 
 - [x] 按此方案设计 Terraform（IaC）：VPC + RDS Serverless + FC 服务
 - [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，init 需带 `-backend-config`）
-- [x] Dockerfile 已就绪（多阶段构建 + 非 root）；镜像由 deploy-provider workflow 构建发布（`<DockerHub用户>/qtcloud-pay`）
+- [x] Dockerfile 已就绪（多阶段构建 + 非 root）；镜像由 deploy-provider workflow 构建发布（`<DockerHub用户>/qtcloud-pay-provider`，为 cli/studio 等预留命名空间）
 - [ ] 环境划分（dev / prod）与配置管理（`DB_DRIVER` / `DATABASE_URL` 等，对齐 provider 技术方案）
 - [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`（系统层面预留，另行规划）
 
