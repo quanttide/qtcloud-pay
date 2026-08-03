@@ -126,3 +126,55 @@ terraform output
 - **状态存储**:已迁移到 OSS 远端后端(`quanttide-terraform-state`),初始化命令见上;多人协作无需再担心状态丢失
 - **镜像发布**:`image` 变量指向的容器镜像需已发布(Docker Hub 公开仓库或 ACR),FC 才能拉取
 - **环境划分**:默认 `prod`(`TF_VAR_environment`);RDS 系列固定 `serverless_basic`(单节点)
+
+## 生产保护（防误删）
+
+生产环境有真实数据后,删除是不可逆的。按四层防御,每层独立兜底:
+
+### 第 1 层:代码层(已落地)
+
+| 保护 | 资源 | 说明 |
+|------|------|------|
+| `deletion_protection = true` | RDS 实例 | 阿里云侧禁止删除实例 |
+| `prevent_destroy` | RDS 实例、VPC | terraform destroy / 配置误删直接报错 |
+| OSS 版本控制 | 状态桶 `quanttide-terraform-state` | state 误删/损坏可从历史版本恢复 |
+| `environment: production` | deploy workflow | 可在 GitHub Environments 配置人工审批 |
+
+局限:只拦 terraform 与 API,不拦控制台手动删除。
+
+### 第 2 层:凭证与权限分离(推荐,收益最大)
+
+**本地/AI 只能「看」,不能「动」**:
+
+1. 新建只读 RAM 用户(如 `qtcloud-terraform-readonly`),仅授 `AliyunReadOnlyAccess`
+2. 将 `~/.aliyun/config.json` 的 default profile 换成只读用户 Key —— 本地只能 `plan`,apply 永远失败
+3. apply 只存在于 CI;CI 凭证(org secrets `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET`)不落本地
+
+即使误发 `terraform destroy`,阿里云也会拒绝——权限层兜底比流程可靠。
+
+### 第 3 层:CI 审批层(需在 GitHub 配置一次)
+
+Settings → Environments → `production` → 开启 **Required reviewers** 并添加自己;之后每次 apply 前需人工批准,AI 无法独自触发生产变更。
+
+### 第 4 层:账号层 Deny 策略(可选强化)
+
+RAM 自定义策略拒绝删除类操作:
+
+```json
+{
+  "Effect": "Deny",
+  "Action": [
+    "rds:DeleteDBInstance",
+    "vpc:DeleteVpc",
+    "oss:DeleteBucket",
+    "ecs:ReleaseEcsInstance"
+  ],
+  "Resource": "*"
+}
+```
+
+### 建议顺序
+
+1. **现在**:换本地只读凭证(第 2 层,5 分钟)
+2. **跑通后**:GitHub production 环境加审批人(第 3 层)
+3. **有空**:Deny 策略(第 4 层)
