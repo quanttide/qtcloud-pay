@@ -1,14 +1,18 @@
 package transaction
 
-import "time"
+import (
+	"time"
 
-// 交易类型。
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/ledger"
+)
+
+// 交易类型（契约见工具库 pkg/ledger；字符串转换保持内部 string API 不变）。
 const (
-	TypeRecharge = "recharge" // 充值（对公打款入账）
-	TypeRefund   = "refund"   // 退款（多退登记：对公退款出账）
-	TypeConsume  = "consume"  // 消费（余额支付部分）
-	TypeIssue    = "issue"    // 发券（信息性记录，不影响余额）
-	TypeRedeem   = "redeem"   // 核销（券抵扣部分，不影响余额）
+	TypeRecharge = string(ledger.TypeRecharge) // 充值（对公打款入账）
+	TypeRefund   = string(ledger.TypeRefund)   // 退款（多退登记：对公退款出账）
+	TypeConsume  = string(ledger.TypeConsume)  // 消费（余额支付部分）
+	TypeIssue    = string(ledger.TypeIssue)    // 发券（信息性记录，不影响余额）
+	TypeRedeem   = string(ledger.TypeRedeem)   // 核销（券抵扣部分，不影响余额）
 )
 
 // Transaction 一笔客户交易的不可变记录，是账本。
@@ -27,17 +31,10 @@ type Transaction struct {
 
 // AffectsBalance 该类型是否影响余额（发券/核销不参与余额求和）。
 func (t *Transaction) AffectsBalance() bool {
-	return t.Type == TypeRecharge || t.Type == TypeRefund || t.Type == TypeConsume
+	return ledger.AffectsBalance(ledger.Type(t.Type))
 }
 
 // SignedAmount 余额方向的带符号金额：充值 +，退款/消费 −，其余 0。
 func (t *Transaction) SignedAmount() int64 {
-	switch t.Type {
-	case TypeRecharge:
-		return t.Amount
-	case TypeRefund, TypeConsume:
-		return -t.Amount
-	default:
-		return 0
-	}
+	return ledger.SignedAmount(ledger.Type(t.Type), t.Amount)
 }
