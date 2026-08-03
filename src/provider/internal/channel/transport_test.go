@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/status"
 )
 
 // mockProvider for API testing
@@ -26,12 +28,12 @@ func (m *apiMockProvider) Pay(_ context.Context, req *PayRequest) (*PayResponse,
 func (m *apiMockProvider) Query(_ context.Context, orderID string) (*OrderStatus, error) {
 	return &OrderStatus{
 		TradeID: "mock_tx_" + orderID, OrderID: orderID,
-		Status: "SUCCESS", Amount: 99.99, PaidAt: "2025-07-11T10:00:00+08:00",
+		Status: status.PaymentStatusSucceeded, Amount: 99.99, PaidAt: "2025-07-11T10:00:00+08:00",
 	}, nil
 }
 
 func (m *apiMockProvider) Refund(_ context.Context, req *RefundRequest) (*RefundResponse, error) {
-	return &RefundResponse{RefundID: "mock_rf_" + req.OrderID, Status: "SUCCESS"}, nil
+	return &RefundResponse{RefundID: "mock_rf_" + req.OrderID, Status: status.RefundStatusSucceeded}, nil
 }
 
 type apiErrProvider struct{}
@@ -107,7 +109,7 @@ func TestAPI_Query_Success(t *testing.T) {
 	var got OrderStatus
 	json.NewDecoder(resp.Body).Decode(&got)
 	resp.Body.Close()
-	if got.OrderID != "ORD001" || got.Status != "SUCCESS" {
+	if got.OrderID != "ORD001" || got.Status != status.PaymentStatusSucceeded {
 		t.Errorf("got OrderID=%q Status=%q", got.OrderID, got.Status)
 	}
 }
@@ -153,7 +155,7 @@ func TestAPI_Refund_Success(t *testing.T) {
 	var got RefundResponse
 	json.NewDecoder(resp.Body).Decode(&got)
 	resp.Body.Close()
-	if got.RefundID != "mock_rf_ORD001" || got.Status != "SUCCESS" {
+	if got.RefundID != "mock_rf_ORD001" || got.Status != status.RefundStatusSucceeded {
 		t.Errorf("got RefundID=%q Status=%q", got.RefundID, got.Status)
 	}
 }

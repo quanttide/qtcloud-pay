@@ -6,6 +6,7 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/alipay"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/channel/wechat"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/status"
 )
 
 // WechatPay 微信支付适配器。
@@ -48,10 +49,14 @@ func (w *WechatPay) Query(ctx context.Context, orderID string) (*OrderStatus, er
 	if err != nil {
 		return nil, err
 	}
+	parsed, err := status.ParseWechatTradeState(resp.TradeState)
+	if err != nil {
+		return nil, err
+	}
 	return &OrderStatus{
 		TradeID: resp.TransactionID,
 		OrderID: resp.OutTradeNo,
-		Status:  resp.TradeState,
+		Status:  parsed,
 		Amount:  float64(resp.Total) / 100,
 		PaidAt:  resp.SuccessTime,
 	}, nil
@@ -69,9 +74,13 @@ func (w *WechatPay) Refund(ctx context.Context, req *RefundRequest) (*RefundResp
 	if err != nil {
 		return nil, err
 	}
+	parsed, err := status.ParseWechatRefundStatus(resp.Status)
+	if err != nil {
+		return nil, err
+	}
 	return &RefundResponse{
 		RefundID: resp.RefundID,
-		Status:   resp.Status,
+		Status:   parsed,
 	}, nil
 }
 
@@ -107,27 +116,19 @@ func (a *AlipayPay) Pay(ctx context.Context, req *PayRequest) (*PayResponse, err
 	}, nil
 }
 
-// alipayTradeStatus 支付宝交易状态到统一状态的映射。
-var alipayTradeStatus = map[string]string{
-	"WAIT_BUYER_PAY": "PENDING",
-	"TRADE_SUCCESS":  "SUCCESS",
-	"TRADE_FINISHED": "SUCCESS",
-	"TRADE_CLOSED":   "CLOSED",
-}
-
 func (a *AlipayPay) Query(ctx context.Context, orderID string) (*OrderStatus, error) {
 	resp, err := a.client.QueryOrder(ctx, orderID)
 	if err != nil {
 		return nil, err
 	}
-	status := alipayTradeStatus[resp.TradeStatus]
-	if status == "" {
-		status = "UNKNOWN"
+	parsed, err := status.ParseAlipayTradeStatus(resp.TradeStatus)
+	if err != nil {
+		return nil, err
 	}
 	return &OrderStatus{
 		TradeID: resp.TradeNo,
 		OrderID: resp.OutTradeNo,
-		Status:  status,
+		Status:  parsed,
 		Amount:  parseAmount(resp.TotalAmount),
 		PaidAt:  resp.PayTime,
 	}, nil
@@ -142,11 +143,11 @@ func (a *AlipayPay) Refund(ctx context.Context, req *RefundRequest) (*RefundResp
 	if err != nil {
 		return nil, err
 	}
-	// TODO: 支付宝退款响应无独立退款单号，暂以商户订单号代替；成功后固定返回 SUCCESS。
+	// TODO: 支付宝退款响应无独立退款单号，暂以商户订单号代替；成功后固定返回 succeeded。
 	_ = resp
 	return &RefundResponse{
 		RefundID: req.OrderID,
-		Status:   "SUCCESS",
+		Status:   status.RefundStatusSucceeded,
 	}, nil
 }
 

@@ -192,7 +192,7 @@ func TestWechatPay_Query(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Status != "SUCCESS" {
+	if string(status.Status) != "succeeded" {
 		t.Errorf("Status = %q", status.Status)
 	}
 	if status.Amount != 99.99 {
@@ -224,7 +224,7 @@ func TestWechatPay_Refund(t *testing.T) {
 	if resp.RefundID != "rf001" {
 		t.Errorf("RefundID = %q", resp.RefundID)
 	}
-	if resp.Status != "SUCCESS" {
+	if string(resp.Status) != "succeeded" {
 		t.Errorf("Status = %q", resp.Status)
 	}
 }
@@ -267,38 +267,11 @@ func TestAlipayPay_Query(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Status != "SUCCESS" {
+	if string(status.Status) != "succeeded" {
 		t.Errorf("Status = %q", status.Status)
 	}
 	if status.TradeID != "tx001" {
 		t.Errorf("TradeID = %q", status.TradeID)
-	}
-}
-
-func TestAlipayPay_Query_UnknownStatus(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"alipay_trade_query_response": map[string]any{
-				"code": "10000", "msg": "Success",
-				"out_trade_no": "ORD001", "trade_no": "tx001",
-				"trade_status": "WAIT_BUYER_PAY", "total_amount": "99.99",
-			},
-			"sign": "",
-		})
-	}))
-	defer ts.Close()
-
-	p := mustNewAlipayPay(t)
-	p.client.SetTransport(&providerTransport{base: ts.URL})
-	p.client.SetAPIURL(ts.URL)
-
-	status, err := p.Query(context.Background(), "ORD001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.Status != "PENDING" {
-		t.Errorf("Status = %q, want PENDING", status.Status)
 	}
 }
 
@@ -320,12 +293,9 @@ func TestAlipayPay_Query_UnknownTradeStatus(t *testing.T) {
 	p.client.SetTransport(&providerTransport{base: ts.URL})
 	p.client.SetAPIURL(ts.URL)
 
-	status, err := p.Query(context.Background(), "ORD001")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if status.Status != "UNKNOWN" {
-		t.Errorf("Status = %q, want UNKNOWN", status.Status)
+	// 未知渠道码显式报错，不静默降级为 UNKNOWN。
+	if _, err := p.Query(context.Background(), "ORD001"); err == nil {
+		t.Fatal("expected error for unknown trade status")
 	}
 }
 
@@ -355,7 +325,7 @@ func TestAlipayPay_Refund(t *testing.T) {
 	if resp.RefundID != "ORD001" {
 		t.Errorf("RefundID = %q", resp.RefundID)
 	}
-	if resp.Status != "SUCCESS" {
+	if string(resp.Status) != "succeeded" {
 		t.Errorf("Status = %q", resp.Status)
 	}
 }
