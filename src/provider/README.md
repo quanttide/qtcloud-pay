@@ -100,6 +100,12 @@ make docker-build
 # 运行（开发库 SQLite，挂载持久化目录）
 make docker-run
 
+# 或一键 compose（构建 + 启动，便于本地开发验证）
+make docker-up    # docker compose up -d --build
+make docker-down  # 停止
+```
+
+```sh
 # 生产：环境变量注入（见上文配置说明），PostgreSQL 或 SQLite 均可
 # docker run -d -p 8080:8080 \
 #   -e DB_DRIVER=postgres -e DATABASE_URL=postgres://user:pass@host:5432/pay \

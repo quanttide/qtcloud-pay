@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Added
+- 新增 `docker-compose.yml`：本地一键构建并启动账本核心服务（SQLite 挂载 `./data` 持久化），Makefile 增加 `docker-up` / `docker-down`
+
 ## [0.1.0-alpha.3] - 2026-08-03
 
 ### Fixed

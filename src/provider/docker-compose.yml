@@ -1,0 +1,16 @@
+# 本地开发环境：一键构建并启动账本核心服务
+# 用法：docker compose up -d --build   （停止：docker compose down）
+# 数据：SQLite 文件库持久化挂载到 ./data/pay.db；容器内以非 root 用户（app）运行
+services:
+  provider:
+    build: .
+    image: qtcloud-pay-provider:local
+    container_name: qtcloud-pay-provider
+    ports:
+      - "8080:8080"
+    environment:
+      DB_DRIVER: sqlite
+      DB_SQLITE_DSN: /data/pay.db
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
