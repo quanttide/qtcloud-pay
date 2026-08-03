@@ -47,13 +47,13 @@ variable "db_password" {
 }
 
 variable "db_engine_version" {
-  description = "RDS PostgreSQL 版本（Serverless 基础版支持 14.0 / 15.0 / 16.0）"
+  description = "RDS PostgreSQL 版本（Serverless 支持 18，官方文档过时；预检查已确认 17→18 合法）"
   type        = string
-  default     = "16.0"
+  default     = "18.0"
 }
 
 variable "db_category" {
-  description = "RDS 系列：serverless_basic（单节点）"
+  description = "RDS 系列：serverless_basic（Serverless 基础版，可用区 cn-hangzhou-k）"
   type        = string
   default     = "serverless_basic"
 }

@@ -13,9 +13,10 @@ resource "alicloud_vpc" "this" {
 }
 
 resource "alicloud_vswitch" "this" {
-  vpc_id       = alicloud_vpc.this.id
-  cidr_block   = var.vswitch_cidr
-  zone_id      = data.alicloud_zones.default.zones[0].id
+  vpc_id     = alicloud_vpc.this.id
+  cidr_block = var.vswitch_cidr
+  # 可用区固定 cn-hangzhou-k：工单确认 B 区无 RDS Serverless 库存，K 区有
+  zone_id      = "cn-hangzhou-k"
   vswitch_name = local.name_prefix
 }
 
