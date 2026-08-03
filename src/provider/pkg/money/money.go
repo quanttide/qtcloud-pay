@@ -6,9 +6,9 @@
 package money
 
 import (
-	"encoding/json"
 	"fmt"
-	"math"
+	"strconv"
+	"strings"
 )
 
 // Cents 金额（分）。JSON 序列化为元（两位小数数字），反序列化接受元并校验两位小数。
@@ -26,16 +26,31 @@ func (c Cents) MarshalJSON() ([]byte, error) {
 }
 
 // UnmarshalJSON 元数字 → 分：99.99 → 9999。
-// 严格校验最多两位小数（拒绝 99.999），避免三位及以上小数被静默舍入入账。
+// 纯整数字符串解析（不经浮点）：仅接受十进制数字，严格校验最多两位小数
+// （拒绝 99.999），避免三位及以上小数被静默舍入入账；拒绝字符串与指数记法。
 func (c *Cents) UnmarshalJSON(b []byte) error {
-	var f float64
-	if err := json.Unmarshal(b, &f); err != nil {
-		return fmt.Errorf("money: invalid amount %s", b)
+	s := string(b)
+	if s == "" || s[0] == '"' || s[0] == '\'' {
+		return fmt.Errorf("money: invalid amount %s", s)
 	}
-	cents := math.Round(f * 100)
-	if math.Abs(f*100-cents) > 1e-6 {
+	neg := false
+	if s[0] == '-' {
+		neg = true
+		s = s[1:]
+	}
+	intPart, frac, hasDot := strings.Cut(s, ".")
+	if hasDot && (len(frac) < 1 || len(frac) > 2) {
 		return fmt.Errorf("money: amount must have at most 2 decimal places: %s", b)
 	}
-	*c = Cents(int64(cents))
+	whole, err1 := strconv.ParseInt(intPart, 10, 64)
+	sub, err2 := strconv.ParseInt((frac+"00")[:2], 10, 64) // 小数位补零到两位
+	if err1 != nil || err2 != nil {
+		return fmt.Errorf("money: invalid amount %s", b)
+	}
+	v := whole*100 + sub
+	if neg {
+		v = -v
+	}
+	*c = Cents(v)
 	return nil
 }

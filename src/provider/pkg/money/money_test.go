@@ -42,6 +42,11 @@ func TestUnmarshalJSON(t *testing.T) {
 		{"199.00", 19900, true},
 		{"99.999", 0, false}, // 三位小数拒绝
 		{"0.001", 0, false},
+		{"1.", 0, false},     // 尾点拒绝（JSON 数字语法）
+		{"1e3", 0, false},    // 指数记法拒绝（金额仅十进制）
+		{"+1.00", 0, false},  // 前导加号拒绝（JSON 数字语法）
+		{"-1.50", -150, true},
+		{"-0.05", -5, true},
 		{`"99.99"`, 0, false}, // 字符串拒绝（API 约定为数字）
 		{"abc", 0, false},
 		{"", 0, false},
@@ -59,7 +64,7 @@ func TestUnmarshalJSON(t *testing.T) {
 }
 
 func TestRoundTrip(t *testing.T) {
-	for _, cents := range []Cents{0, 1, 9999, 1000000, 123456789} {
+	for _, cents := range []Cents{0, 1, 9999, 1000000, 123456789, -150, -123456789} {
 		b, err := json.Marshal(cents)
 		if err != nil {
 			t.Fatal(err)
