@@ -37,6 +37,14 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 | 版本 tag | `<scope>/vX.Y.Z`(qtcloud-devops release) | `provider/v0.1.0-alpha.1` |
 | API 域名 | `api.quanttide.com/<app>`(系统级预留) | `api.quanttide.com/qtcloud-pay` |
 
+### 命名风格（为什么这么命名）
+
+1. **归属优先**：名字第一段永远是归属（`quanttide` 域 → `qtcloud-pay` 应用 → `provider`/`fc` 组件），不是功能；先问「这是谁的」，再问「是什么」
+2. **与仓库结构同构**：命名是「域 → 应用 → 组件」分层的投影（对应 `domains/` → `apps/<app>` → `src/<组件>`），看到名字能映射回代码库位置
+3. **环境显式化**：`prod`/`dev` 永不省略，命名即隔离（每环境独立实例，环境后缀是隔离机制而非装饰）
+4. **连接符分工**：连字符 `-` 表示层级组合（归属-环境-组件）；下划线 `_` 表示实体内部名（数据库 `qtcloud_pay`，PG 对象名惯例）；斜杠 `/` 表示域级路由（API 域名、state key）
+5. **可推断性**：名字即文档，一读可知归属、环境、用途，无需查表
+
 ## 环境准备
 
 ### 1. 阿里云凭证（机器级配置）
