@@ -24,6 +24,11 @@ resource "alicloud_db_instance" "this" {
   }
   instance_name     = local.name_prefix
   resource_group_id = local.resource_group_id
+  # 生产保护：删除保护 + prevent_destroy，防止误删/误 destroy
+  deletion_protection = true
+  lifecycle {
+    prevent_destroy = true
+  }
   tags = {
     project     = var.project
     environment = var.environment

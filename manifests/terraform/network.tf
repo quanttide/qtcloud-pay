@@ -7,6 +7,9 @@ resource "alicloud_vpc" "this" {
   vpc_name          = local.name_prefix
   cidr_block        = var.vpc_cidr
   resource_group_id = local.resource_group_id
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "alicloud_vswitch" "this" {

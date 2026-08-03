@@ -77,6 +77,8 @@ jobs:
     timeout-minutes: 40 # RDS 创建耗时较长
     permissions:
       contents: read
+    # 生产环境保护：可在 GitHub Settings → Environments → production 配置 required reviewers（人工审批后才能 apply）
+    environment: production
 
     env:
       ALICLOUD_ACCESS_KEY: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
