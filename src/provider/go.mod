@@ -2,9 +2,16 @@ module github.com/quanttide/qtcloud-pay/src/provider
 
 go 1.26.4
 
-require github.com/go-pay/gopay v1.5.122
+require (
+	github.com/go-pay/gopay v1.5.122
+	github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.0-00010101000000-000000000000
+	gorm.io/driver/postgres v1.6.2
+	gorm.io/driver/sqlite v1.6.0
+	gorm.io/gorm v1.31.2
+)
 
 require (
+	github.com/Rhymond/go-money v1.0.15 // indirect
 	github.com/go-pay/crypto v0.0.1 // indirect
 	github.com/go-pay/errgroup v0.0.3 // indirect
 	github.com/go-pay/smap v0.0.2 // indirect
@@ -20,7 +27,6 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
-	gorm.io/driver/postgres v1.6.2 // indirect
-	gorm.io/driver/sqlite v1.6.0 // indirect
-	gorm.io/gorm v1.31.2 // indirect
 )
+
+replace github.com/quanttide/quanttide-pay-toolkit/packages/go => ../../../../packages/quanttide-pay-toolkit/packages/go

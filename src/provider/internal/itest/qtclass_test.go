@@ -209,7 +209,7 @@ func TestA07_InsufficientBalanceRollback(t *testing.T) {
 	})
 
 	e.post("/orders", map[string]any{
-		"order_id": "O-GT-1", "account_id": acc, "scope": "course", "amount": 10000,
+		"order_id": "O-GT-1", "account_id": acc, "scope": "course", "amount": toAmount(10000),
 	}).mustStatus(e, http.StatusUnprocessableEntity)
 
 	// 订单不存在

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
-	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 // Handler 对账 API。
@@ -39,8 +39,8 @@ func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 	for _, d := range discrepancies {
 		dtos = append(dtos, discrepancyDTO{
 			AccountID: d.AccountID,
-			Balance:   money.Cents(d.Balance),
-			Expected:  money.Cents(d.Expected),
+			Balance:   money.New(d.Balance, money.CNY),
+			Expected:  money.New(d.Expected, money.CNY),
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"discrepancies": dtos})
@@ -49,8 +49,8 @@ func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 // discrepancyDTO 一致性差异响应（金额以元传输）。
 type discrepancyDTO struct {
 	AccountID string      `json:"account_id"`
-	Balance   money.Cents `json:"balance"`
-	Expected  money.Cents `json:"expected"`
+	Balance   *money.Money `json:"balance"`
+	Expected  *money.Money `json:"expected"`
 }
 
 func (h *Handler) handleBankFile(w http.ResponseWriter, r *http.Request) {
@@ -79,8 +79,8 @@ func (h *Handler) handleStatement(w http.ResponseWriter, r *http.Request) {
 // statementDTO 账单响应（金额以元传输）。
 type statementDTO struct {
 	AccountID   string              `json:"account_id"`
-	Opening     money.Cents         `json:"opening_balance"`
-	Closing     money.Cents         `json:"closing_balance"`
+	Opening     *money.Money         `json:"opening_balance"`
+	Closing     *money.Money         `json:"closing_balance"`
 	Entries     []statementEntryDTO `json:"entries"`
 	GeneratedAt time.Time           `json:"generated_at"`
 }
@@ -89,23 +89,23 @@ type statementDTO struct {
 type statementEntryDTO struct {
 	ID             int64       `json:"id"`
 	Type           string      `json:"type"`
-	Amount         money.Cents `json:"amount"`
+	Amount         *money.Money `json:"amount"`
 	Note           string      `json:"note,omitempty"`
 	CreatedAt      time.Time   `json:"created_at"`
-	RunningBalance money.Cents `json:"running_balance"`
+	RunningBalance *money.Money `json:"running_balance"`
 }
 
 func toStatementDTO(s *Statement) statementDTO {
 	entries := make([]statementEntryDTO, 0, len(s.Entries))
 	for _, e := range s.Entries {
 		entries = append(entries, statementEntryDTO{
-			ID: e.ID, Type: e.Type, Amount: money.Cents(e.Amount), Note: e.Note,
-			CreatedAt: e.CreatedAt, RunningBalance: money.Cents(e.RunningBalance),
+			ID: e.ID, Type: e.Type, Amount: money.New(e.Amount, money.CNY), Note: e.Note,
+			CreatedAt: e.CreatedAt, RunningBalance: money.New(e.RunningBalance, money.CNY),
 		})
 	}
 	return statementDTO{
-		AccountID: s.AccountID, Opening: money.Cents(s.Opening),
-		Closing: money.Cents(s.Closing), Entries: entries, GeneratedAt: s.GeneratedAt,
+		AccountID: s.AccountID, Opening: money.New(s.Opening, money.CNY),
+		Closing: money.New(s.Closing, money.CNY), Entries: entries, GeneratedAt: s.GeneratedAt,
 	}
 }
 

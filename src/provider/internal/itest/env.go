@@ -2,14 +2,13 @@
 // SQLite :memory: 真库 + 全模块真实组装（internal/app.BuildMux）+ 真实 HTTP API 驱动。
 // 不 mock、不单独测纯函数——计费等逻辑的正确性由业务旅程的账本断言间接覆盖。
 //
-// 金额约定：测试用例内部一律以分（int64）表达；helper 在发送时转为元、断言时解析回分。
+// 金额约定：测试用例内部一律以分（int64）表达；helper 在发送时转为结构化金额、断言时解析回分。
 package itest
 
 import (
 	"bytes"
 	"encoding/json"
 	"io"
-	"math"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/app"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 // env 集成测试环境。
@@ -104,26 +104,26 @@ func (r *resp) json(e *env, v any) *resp {
 
 // --- 领域操作辅助（走真实 API） ---
 
-// yuan 分 → 元（float，JSON 序列化为两位小数数字）。
-func yuan(cents int64) float64 {
-	return float64(cents) / 100
+// amountOf 分 → 结构化金额（JSON 传输对象）。
+func amountOf(cents int64) *money.Money {
+	return money.New(cents, money.CNY)
 }
 
-// centsOf 元 → 分：解析 API 响应中的金额（JSON 数字，元）。
+// centsOf 解析 API 响应中的结构化金额（{"amount": 分, "currency": ...}）为分。
 func centsOf(v any) int64 {
-	return int64(math.Round(v.(float64) * 100))
+	return int64(v.(map[string]any)["amount"].(float64))
 }
 
-// toYuan 将测试用例传入的金额（int 或 int64，分）转为元。
+// toAmount 将测试用例传入的金额（int 或 int64，分）转为结构化金额。
 // 测试 map 字面量的整数默认是 int，需兼容两种类型。
-func toYuan(v any) float64 {
+func toAmount(v any) *money.Money {
 	switch a := v.(type) {
 	case int:
-		return float64(a) / 100
+		return money.New(int64(a), money.CNY)
 	case int64:
-		return float64(a) / 100
+		return money.New(a, money.CNY)
 	}
-	return 0
+	return money.New(0, money.CNY)
 }
 
 // createAccount 创建账户并返回账户 ID。
@@ -141,7 +141,7 @@ func (e *env) createAccount(customerID string) string {
 func (e *env) recharge(accountID string, amount int64, voucherNo string) {
 	e.t.Helper()
 	e.post("/accounts/"+accountID+"/recharges", map[string]any{
-		"amount": yuan(amount), "voucher_no": voucherNo,
+		"amount": amountOf(amount), "voucher_no": voucherNo,
 	}).mustStatus(e, http.StatusOK)
 }
 
@@ -149,7 +149,7 @@ func (e *env) recharge(accountID string, amount int64, voucherNo string) {
 func (e *env) refund(accountID string, amount int64, voucherNo string) {
 	e.t.Helper()
 	e.post("/accounts/"+accountID+"/refunds", map[string]any{
-		"amount": yuan(amount), "voucher_no": voucherNo,
+		"amount": amountOf(amount), "voucher_no": voucherNo,
 	}).mustStatus(e, http.StatusOK)
 }
 
@@ -174,7 +174,7 @@ func (e *env) issueCoupon(accountID string, c map[string]any) {
 		if v, ok := c[k]; ok {
 			switch v.(type) {
 			case int, int64:
-				c[k] = toYuan(v)
+				c[k] = toAmount(v)
 			}
 		}
 	}
@@ -187,7 +187,7 @@ func (e *env) issueVoucher(accountID string, v map[string]any) {
 	if a, ok := v["amount"]; ok {
 		switch a.(type) {
 		case int, int64:
-			v["amount"] = toYuan(a)
+			v["amount"] = toAmount(a)
 		}
 	}
 	e.post("/accounts/"+accountID+"/vouchers", v).mustStatus(e, http.StatusOK)
@@ -219,7 +219,7 @@ func (e *env) settle(o map[string]any) map[string]any {
 	if v, ok := o["amount"]; ok {
 		switch v.(type) {
 		case int, int64:
-			o["amount"] = toYuan(v)
+			o["amount"] = toAmount(v)
 		}
 	}
 	var got map[string]any

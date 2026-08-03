@@ -64,7 +64,7 @@ db.AutoMigrate(
 
 ### 金额与折扣计算
 
-- 内部全链路金额 int64（分），无浮点；API 边界经 `pkg/money.Cents` 转换——传输为元（两位小数数字，严格校验拒绝三位及以上小数），内部为分，转换零误差（整数运算，不经过浮点舍入）
+- 内部全链路金额 int64（分），无浮点；API 边界经工具库 `pkg/money.Money`（quanttide-pay-toolkit，go-money 金额值对象）传输——JSON 为 `{"amount": 整数分, "currency": 币种}`，严格校验拒绝非整数金额，全链路单位统一为分，转换零误差（整数运算，不经过浮点舍入）
 - 例外：`POST /reconcile/bank` 的银行流水 CSV 金额为分（`amount_cents`，财务工具格式）
 - **已知例外（v0.1.0 遗留，见 ROADMAP F2）**：`internal/channel` 渠道层仍用 float64 元（`PayRequest.Amount` 等）且存在 `int(x*100)` 截断精度缺陷——渠道层与账本层金额表示不一致，**新代码一律以分传输，勿照抄渠道层写法**
 - 折扣券按整数百分比：9 折 = rate 90 = 省 10%，`折扣 = 应付 × (100 − rate) / 100`（向下取整）

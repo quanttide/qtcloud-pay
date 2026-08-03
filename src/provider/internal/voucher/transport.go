@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 // Handler 代金券 API。
@@ -34,7 +34,7 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Amount    money.Cents `json:"amount"`
+		Amount    *money.Money `json:"amount"`
 		Scope     string      `json:"scope"`
 		ProductID string      `json:"product_id"`
 		ExpiresAt time.Time   `json:"expires_at"`
@@ -48,7 +48,7 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	err := h.svc.Issue(r.Context(), &IssueRequest{
 		AccountID: accountID,
-		Amount:    int64(req.Amount),
+		Amount:    money.CentsOf(req.Amount),
 		Scope:     req.Scope,
 		ProductID: req.ProductID,
 		ExpiresAt: req.ExpiresAt,
@@ -71,7 +71,7 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 type voucherDTO struct {
 	ID        int64       `json:"id"`
 	AccountID string      `json:"account_id"`
-	Amount    money.Cents `json:"amount"`
+	Amount    *money.Money `json:"amount"`
 	Scope     string      `json:"scope"`
 	ProductID string      `json:"product_id,omitempty"`
 	ExpiresAt time.Time   `json:"expires_at"`
@@ -83,7 +83,7 @@ type voucherDTO struct {
 
 func toVoucherDTO(v Voucher) voucherDTO {
 	return voucherDTO{
-		ID: v.ID, AccountID: v.AccountID, Amount: money.Cents(v.Amount),
+		ID: v.ID, AccountID: v.AccountID, Amount: money.New(v.Amount, money.CNY),
 		Scope: v.Scope, ProductID: v.ProductID, ExpiresAt: v.ExpiresAt,
 		Status: v.Status, UsedAt: v.UsedAt, OrderID: v.OrderID, CreatedAt: v.CreatedAt,
 	}

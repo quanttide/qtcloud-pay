@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
+
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
 
@@ -25,7 +27,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *voucher.Service) {
 
 func issueBody() map[string]any {
 	return map[string]any{
-		"amount": 3000, "scope": "all",
+		"amount": money.New(3000, money.CNY), "scope": "all",
 		"expires_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 		"count":      2, "batch_no": "batch-v-http",
 	}

@@ -111,7 +111,7 @@ func TestB04_SettleSettleRefundRecharge(t *testing.T) {
 
 	// 少补：实际用量超出预存 → 余额不足整体回滚 → 补款后再结算
 	e.post("/orders", map[string]any{
-		"order_id": "O-SJ-2", "account_id": acc, "scope": "data", "amount": 300000,
+		"order_id": "O-SJ-2", "account_id": acc, "scope": "data", "amount": toAmount(300000),
 	}).mustStatus(e, http.StatusUnprocessableEntity)
 	e.assertLedger(acc, 0) // 回滚干净
 

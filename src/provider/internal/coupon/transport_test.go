@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
+
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 )
 
@@ -25,7 +27,7 @@ func newTestServer(t *testing.T) (*httptest.Server, *coupon.Service) {
 
 func issueBody() map[string]any {
 	return map[string]any{
-		"type": "full_reduction", "threshold": 10000, "amount": 2000,
+		"type": "full_reduction", "threshold": money.New(10000, money.CNY), "amount": money.New(2000, money.CNY),
 		"scope": "all", "expires_at": time.Now().Add(24 * time.Hour).Format(time.RFC3339),
 		"count": 2, "batch_no": "batch-http-1",
 	}

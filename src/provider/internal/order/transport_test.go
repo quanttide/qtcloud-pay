@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
+
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/order"
 )
 
@@ -38,7 +40,7 @@ func fundedAccount(t *testing.T, e *env, ctx context.Context) string {
 func settleBody(accountID string) map[string]any {
 	return map[string]any{
 		"order_id": "ORD-HTTP-1", "customer_id": "cust_1", "account_id": accountID,
-		"product_id": "course-1", "scope": "course", "amount": 100.00,
+		"product_id": "course-1", "scope": "course", "amount": money.New(10000, money.CNY),
 	}
 }
 
@@ -75,8 +77,8 @@ func TestTransport_Settle_Errors(t *testing.T) {
 		want int
 	}{
 		{"bad json", `not-json`, 400},
-		{"invalid request", `{"order_id":"","account_id":"acc_1","amount":0}`, 400},
-		{"account not found", `{"order_id":"ORD-X","account_id":"acc_missing","scope":"course","amount":100}`, 404},
+		{"invalid request", `{"order_id":"","account_id":"acc_1","amount":{"amount":0,"currency":"CNY"}}`, 400},
+		{"account not found", `{"order_id":"ORD-X","account_id":"acc_missing","scope":"course","amount":{"amount":100,"currency":"CNY"}}`, 404},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -98,7 +100,7 @@ func TestTransport_Settle_Insufficient(t *testing.T) {
 	acc, _ := e.accountSvc.Create(ctx, "cust_1")
 	e.accountSvc.Recharge(ctx, acc.ID, 100, "v-small", "") // 余额不足
 
-	body := `{"order_id":"ORD-X","account_id":"` + acc.ID + `","scope":"course","amount":100.00}`
+	body := `{"order_id":"ORD-X","account_id":"` + acc.ID + `","scope":"course","amount":{"amount":10000,"currency":"CNY"}}`
 	resp, err := http.Post(ts.URL+"/orders", "application/json", bytes.NewReader([]byte(body)))
 	if err != nil {
 		t.Fatal(err)

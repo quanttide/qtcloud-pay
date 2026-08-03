@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 // Handler 优惠券 API。
@@ -36,8 +36,8 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Type      string      `json:"type"`
 		Rate      int         `json:"rate"`
-		Threshold money.Cents `json:"threshold"`
-		Amount    money.Cents `json:"amount"`
+		Threshold *money.Money `json:"threshold"`
+		Amount    *money.Money `json:"amount"`
 		Scope     string      `json:"scope"`
 		ProductID string      `json:"product_id"`
 		ExpiresAt time.Time   `json:"expires_at"`
@@ -53,8 +53,8 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 		AccountID: accountID,
 		Type:      req.Type,
 		Rate:      req.Rate,
-		Threshold: int64(req.Threshold),
-		Amount:    int64(req.Amount),
+		Threshold: money.CentsOf(req.Threshold),
+		Amount:    money.CentsOf(req.Amount),
 		Scope:     req.Scope,
 		ProductID: req.ProductID,
 		ExpiresAt: req.ExpiresAt,
@@ -79,8 +79,8 @@ type couponDTO struct {
 	AccountID string      `json:"account_id"`
 	Type      string      `json:"type"`
 	Rate      int         `json:"rate,omitempty"`
-	Threshold money.Cents `json:"threshold,omitempty"`
-	Amount    money.Cents `json:"amount,omitempty"`
+	Threshold *money.Money `json:"threshold,omitempty"`
+	Amount    *money.Money `json:"amount,omitempty"`
 	Scope     string      `json:"scope"`
 	ProductID string      `json:"product_id,omitempty"`
 	ExpiresAt time.Time   `json:"expires_at"`
@@ -93,7 +93,7 @@ type couponDTO struct {
 func toCouponDTO(c Coupon) couponDTO {
 	return couponDTO{
 		ID: c.ID, AccountID: c.AccountID, Type: c.Type, Rate: c.Rate,
-		Threshold: money.Cents(c.Threshold), Amount: money.Cents(c.Amount),
+		Threshold: money.New(c.Threshold, money.CNY), Amount: money.New(c.Amount, money.CNY),
 		Scope: c.Scope, ProductID: c.ProductID, ExpiresAt: c.ExpiresAt,
 		Status: c.Status, UsedAt: c.UsedAt, OrderID: c.OrderID, CreatedAt: c.CreatedAt,
 	}

@@ -12,7 +12,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/billing"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
-	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 // Handler 订单 API。
@@ -38,7 +38,7 @@ func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 		AccountID  string      `json:"account_id"`
 		ProductID  string      `json:"product_id"`
 		Scope      string      `json:"scope"`
-		Amount     money.Cents `json:"amount"`
+		Amount     *money.Money `json:"amount"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
@@ -46,7 +46,7 @@ func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 	}
 	order, err := h.svc.Settle(r.Context(), &SettleRequest{
 		OrderID: req.OrderID, CustomerID: req.CustomerID, AccountID: req.AccountID,
-		ProductID: req.ProductID, Scope: req.Scope, Amount: int64(req.Amount),
+		ProductID: req.ProductID, Scope: req.Scope, Amount: money.CentsOf(req.Amount),
 	})
 	if err != nil {
 		writeServiceError(w, err)
@@ -76,7 +76,7 @@ type orderDTO struct {
 	AccountID    string          `json:"account_id"`
 	ProductID    string          `json:"product_id,omitempty"`
 	Scope        string          `json:"scope,omitempty"`
-	Amount       money.Cents     `json:"amount"`
+	Amount       *money.Money     `json:"amount"`
 	Status       string          `json:"status"`
 	SettleDetail json.RawMessage `json:"settle_detail,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
@@ -86,7 +86,7 @@ type orderDTO struct {
 func toOrderDTO(o *Order) orderDTO {
 	return orderDTO{
 		ID: o.ID, CustomerID: o.CustomerID, AccountID: o.AccountID,
-		ProductID: o.ProductID, Scope: o.Scope, Amount: money.Cents(o.Amount),
+		ProductID: o.ProductID, Scope: o.Scope, Amount: money.New(o.Amount, money.CNY),
 		Status: o.Status, SettleDetail: formatSettleDetail(o.SettleDetail),
 		CreatedAt: o.CreatedAt, SettledAt: o.SettledAt,
 	}
@@ -108,11 +108,11 @@ func formatSettleDetail(raw json.RawMessage) json.RawMessage {
 	type detailOut struct {
 		Kind   string      `json:"kind"`
 		RefID  int64       `json:"ref_id"`
-		Amount money.Cents `json:"amount"`
+		Amount *money.Money `json:"amount"`
 	}
 	out := make([]detailOut, 0, len(ds))
 	for _, d := range ds {
-		out = append(out, detailOut{Kind: d.Kind, RefID: d.RefID, Amount: money.Cents(d.Amount)})
+		out = append(out, detailOut{Kind: d.Kind, RefID: d.RefID, Amount: money.New(d.Amount, money.CNY)})
 	}
 	b, err := json.Marshal(out)
 	if err != nil {

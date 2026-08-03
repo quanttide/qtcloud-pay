@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
-	"github.com/quanttide/qtcloud-pay/src/provider/pkg/money"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
 func newTestServer(t *testing.T) (*httptest.Server, *account.Service) {
@@ -47,14 +47,14 @@ func TestTransport_Create(t *testing.T) {
 		t.Fatalf("status = %d, want 201", resp.StatusCode)
 	}
 	var got struct {
-		ID         string      `json:"id"`
-		CustomerID string      `json:"customer_id"`
-		Balance    money.Cents `json:"balance"`
+		ID         string       `json:"id"`
+		CustomerID string       `json:"customer_id"`
+		Balance    *money.Money `json:"balance"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
 		t.Fatal(err)
 	}
-	if got.CustomerID != "cust_1" || got.ID == "" || got.Balance != 0 {
+	if got.CustomerID != "cust_1" || got.ID == "" || got.Balance == nil || got.Balance.Amount() != 0 {
 		t.Errorf("account = %+v", got)
 	}
 
@@ -93,7 +93,7 @@ func TestTransport_Recharge(t *testing.T) {
 	acc, _ := svc.Create(ctx, "cust_1")
 
 	resp := postJSON(t, ts.URL+"/accounts/"+acc.ID+"/recharges",
-		map[string]any{"amount": 50.00, "voucher_no": "v1", "note": "打款"})
+		map[string]any{"amount": money.New(5000, money.CNY), "voucher_no": "v1", "note": "打款"})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -118,13 +118,13 @@ func TestTransport_Recharge_Errors(t *testing.T) {
 	}{
 		{"bad json", ts.URL + "/accounts/" + acc.ID + "/recharges", "not-json", 400},
 		{"invalid amount", ts.URL + "/accounts/" + acc.ID + "/recharges",
-			map[string]any{"amount": 0, "voucher_no": "v1"}, 400},
-		{"three decimals", ts.URL + "/accounts/" + acc.ID + "/recharges",
-			map[string]any{"amount": 99.999, "voucher_no": "v1"}, 400},
+			map[string]any{"amount": money.New(0, money.CNY), "voucher_no": "v1"}, 400},
+		{"non-integer amount", ts.URL + "/accounts/" + acc.ID + "/recharges",
+			map[string]any{"amount": map[string]any{"amount": 99.999, "currency": "CNY"}, "voucher_no": "v1"}, 400},
 		{"account not found", ts.URL + "/accounts/acc_missing/recharges",
-			map[string]any{"amount": 1.00, "voucher_no": "v1"}, 404},
+			map[string]any{"amount": money.New(100, money.CNY), "voucher_no": "v1"}, 404},
 		{"empty id", ts.URL + "/accounts/%20/recharges",
-			map[string]any{"amount": 1.00, "voucher_no": "v1"}, 400},
+			map[string]any{"amount": money.New(100, money.CNY), "voucher_no": "v1"}, 400},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -144,7 +144,7 @@ func TestTransport_Refund(t *testing.T) {
 	svc.Recharge(ctx, acc.ID, 10000, "v1", "")
 
 	resp := postJSON(t, ts.URL+"/accounts/"+acc.ID+"/refunds",
-		map[string]any{"amount": 40.00, "voucher_no": "r1", "note": "多退"})
+		map[string]any{"amount": money.New(4000, money.CNY), "voucher_no": "r1", "note": "多退"})
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
@@ -170,13 +170,13 @@ func TestTransport_Refund_Errors(t *testing.T) {
 	}{
 		{"bad json", ts.URL + "/accounts/" + acc.ID + "/refunds", "not-json", 400},
 		{"invalid amount", ts.URL + "/accounts/" + acc.ID + "/refunds",
-			map[string]any{"amount": 0, "voucher_no": "r1"}, 400},
+			map[string]any{"amount": money.New(0, money.CNY), "voucher_no": "r1"}, 400},
 		{"insufficient balance", ts.URL + "/accounts/" + acc.ID + "/refunds",
-			map[string]any{"amount": 60.00, "voucher_no": "r1"}, 422},
+			map[string]any{"amount": money.New(6000, money.CNY), "voucher_no": "r1"}, 422},
 		{"account not found", ts.URL + "/accounts/acc_missing/refunds",
-			map[string]any{"amount": 1.00, "voucher_no": "r1"}, 404},
+			map[string]any{"amount": money.New(100, money.CNY), "voucher_no": "r1"}, 404},
 		{"empty id", ts.URL + "/accounts/%20/refunds",
-			map[string]any{"amount": 1.00, "voucher_no": "r1"}, 400},
+			map[string]any{"amount": money.New(100, money.CNY), "voucher_no": "r1"}, 400},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -203,12 +203,12 @@ func TestTransport_Get(t *testing.T) {
 		t.Fatalf("status = %d, want 200", resp.StatusCode)
 	}
 	var got struct {
-		ID         string      `json:"id"`
-		CustomerID string      `json:"customer_id"`
-		Balance    money.Cents `json:"balance"`
+		ID         string       `json:"id"`
+		CustomerID string       `json:"customer_id"`
+		Balance    *money.Money `json:"balance"`
 	}
 	json.NewDecoder(resp.Body).Decode(&got)
-	if got.ID != acc.ID || got.CustomerID != "cust_1" || got.Balance != 0 {
+	if got.ID != acc.ID || got.CustomerID != "cust_1" || got.Balance == nil || got.Balance.Amount() != 0 {
 		t.Errorf("account = %+v", got)
 	}
 }

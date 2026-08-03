@@ -93,7 +93,7 @@ func TestX04_ConcurrentSameOrder(t *testing.T) {
 	e.recharge(acc, 20000, "GT-001")
 
 	body, _ := json.Marshal(map[string]any{
-		"order_id": "O-C-1", "account_id": acc, "scope": "course", "amount": toYuan(10000),
+		"order_id": "O-C-1", "account_id": acc, "scope": "course", "amount": toAmount(10000),
 	})
 	var wg sync.WaitGroup
 	statuses := make(chan int, 2)
