@@ -21,11 +21,11 @@ type PayResponse struct {
 
 // OrderStatus 订单状态。Status 为统一支付状态（契约见工具库 pkg/status）。
 type OrderStatus struct {
-	TradeID string             // 支付平台交易号
-	OrderID string             // 商户订单号
+	TradeID string               // 支付平台交易号
+	OrderID string               // 商户订单号
 	Status  status.PaymentStatus // 状态
-	Amount  float64            // 实付金额
-	PaidAt  string             // 支付时间
+	Amount  float64              // 实付金额
+	PaidAt  string               // 支付时间
 }
 
 // RefundRequest 退款请求
@@ -38,6 +38,6 @@ type RefundRequest struct {
 
 // RefundResponse 退款响应。Status 为统一退款状态（契约见工具库 pkg/status）。
 type RefundResponse struct {
-	RefundID string           // 退款单号
+	RefundID string              // 退款单号
 	Status   status.RefundStatus // 退款状态
 }

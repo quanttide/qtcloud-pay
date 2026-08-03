@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from tests.api import ApiClient, unique
+from tests.api import ApiClient, _money, unique
 
 
 def test_b01_recharge_large(api: ApiClient) -> None:
@@ -103,7 +103,7 @@ def test_b04_refund_and_recharge(api: ApiClient) -> None:
     order_id = unique("O-SJ-2")
     status, _ = api.post(
         "/orders",
-        {"order_id": order_id, "account_id": acc, "scope": "data", "amount": 300000},
+        {"order_id": order_id, "account_id": acc, "scope": "data", "amount": _money(300000)},
     )
     assert status == 422, f"status = {status}, want 422"
     api.assert_ledger(acc, 0)  # 回滚干净

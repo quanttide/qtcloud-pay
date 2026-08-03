@@ -242,6 +242,21 @@ func TestRecharge_TxServiceError(t *testing.T) {
 	if got.Balance != 0 {
 		t.Errorf("balance = %d, want 0 (rolled back)", got.Balance)
 	}
+
+	// 幂等键唯一冲突（并发下另一请求已入账）→ 视为成功，不重复入账
+	txSvcDup := transaction.NewService(&stubTxRepo{createErr: gorm.ErrDuplicatedKey})
+	svcDup := account.NewService(db, accountgorm.NewAccountRepo(), txSvcDup)
+	accDup, err := svcDup.Create(ctx, "cust_dup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svcDup.Recharge(ctx, accDup.ID, 100, "v-dup", ""); err != nil {
+		t.Fatalf("duplicate key should be treated as success: %v", err)
+	}
+	got, _ = svcDup.Get(ctx, accDup.ID)
+	if got.Balance != 0 {
+		t.Errorf("balance = %d, want 0 (no double entry)", got.Balance)
+	}
 }
 
 func TestRefund(t *testing.T) {
@@ -344,6 +359,25 @@ func TestRefund_TxServiceError(t *testing.T) {
 	got, _ := svcAppend.Get(ctx, acc.ID)
 	if got.Balance != 0 {
 		t.Errorf("balance = %d, want 0 (rolled back)", got.Balance)
+	}
+
+	// 幂等键唯一冲突（并发下另一请求已退款）→ 视为成功，不重复退款
+	txSvcDup := transaction.NewService(&stubTxRepo{createErr: gorm.ErrDuplicatedKey})
+	svcDup := account.NewService(db, accountgorm.NewAccountRepo(), txSvcDup)
+	accDup, err := svcDup.Create(ctx, "cust_dup")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 直接改余额（Append 被 stub 为冲突，无法经正常充值入账）
+	if err := db.Model(&account.Account{}).Where("id = ?", accDup.ID).Update("balance", 100).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := svcDup.Refund(ctx, accDup.ID, 100, "r-dup", ""); err != nil {
+		t.Fatalf("duplicate key should be treated as success: %v", err)
+	}
+	got, _ = svcDup.Get(ctx, accDup.ID)
+	if got.Balance != 100 {
+		t.Errorf("balance = %d, want 100 (no double refund)", got.Balance)
 	}
 }
 

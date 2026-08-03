@@ -3,12 +3,14 @@ package order
 import (
 	"encoding/json"
 	"time"
+
+	paystatus "github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/status"
 )
 
-// 订单状态。
+// 订单状态（契约来自工具库 pkg/status）。
 const (
-	StatusCreated = "created" // 已创建
-	StatusSettled = "settled" // 已结算
+	StatusCreated = string(paystatus.OrderStatusCreated) // 已创建
+	StatusSettled = string(paystatus.OrderStatusSettled) // 已结算
 )
 
 // Order 客户购买付费服务的交易请求。结算时应用计费规则生成交易，更新余额与券状态。

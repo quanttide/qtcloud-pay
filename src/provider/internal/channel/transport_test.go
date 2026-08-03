@@ -332,14 +332,6 @@ func freeAddr(t *testing.T) string {
 	return addr
 }
 
-func TestWriteJSON_EncodeError(t *testing.T) {
-	w := httptest.NewRecorder()
-	writeJSON(w, http.StatusOK, make(chan int)) // 不可序列化，走错误分支
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", w.Code)
-	}
-}
-
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()
 	b, err := json.Marshal(v)

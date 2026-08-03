@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/app"
-	"github.com/quanttide/qtcloud-pay/src/provider/internal/middleware"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/middleware"
 )
 
 func main() {

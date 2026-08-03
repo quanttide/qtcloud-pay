@@ -1,5 +1,7 @@
 """provider 服务端集成测试冒烟用例：验证二进制可启动且账本 API 可用。"""
 
+from tests.api import _money, _cents
+
 
 def test_server_health(api):
     # 服务已就绪：一致性校验端点可用
@@ -16,13 +18,13 @@ def test_create_account_and_recharge(api):
 
     status, _ = api.post(
         f"/accounts/{account_id}/recharges",
-        {"amount": 20000, "voucher_no": "GT-001"},
+        {"amount": _money(20000), "voucher_no": "GT-001"},
     )
     assert status == 200
 
     status, account = api.get(f"/accounts/{account_id}")
     assert status == 200
-    assert account["balance"] == 20000
+    assert _cents(account["balance"]) == 20000
 
     status, txs = api.get(f"/accounts/{account_id}/transactions")
     assert status == 200
@@ -36,7 +38,7 @@ def test_settle_order(api):
     account_id = account["id"]
     api.post(
         f"/accounts/{account_id}/recharges",
-        {"amount": 10000, "voucher_no": "GT-002"},
+        {"amount": _money(10000), "voucher_no": "GT-002"},
     )
 
     status, order = api.post(
@@ -45,11 +47,11 @@ def test_settle_order(api):
             "order_id": "O-GT-1",
             "account_id": account_id,
             "scope": "course",
-            "amount": 10000,
+            "amount": _money(10000),
         },
     )
     assert status == 201
     assert order["status"] == "settled"
 
     _, account = api.get(f"/accounts/{account_id}")
-    assert account["balance"] == 0
+    assert _cents(account["balance"]) == 0

@@ -1,14 +1,13 @@
 package reconciliation
 
 import (
-	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/httpapi"
 	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
@@ -32,7 +31,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 	discrepancies, err := h.svc.CheckConsistency(r.Context())
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
 	dtos := make([]discrepancyDTO, 0, len(discrepancies))
@@ -43,12 +42,12 @@ func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 			Expected:  money.New(d.Expected, money.CNY),
 		})
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"discrepancies": dtos})
+	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"discrepancies": dtos})
 }
 
 // discrepancyDTO 一致性差异响应（金额以元传输）。
 type discrepancyDTO struct {
-	AccountID string      `json:"account_id"`
+	AccountID string       `json:"account_id"`
 	Balance   *money.Money `json:"balance"`
 	Expected  *money.Money `json:"expected"`
 }
@@ -56,42 +55,42 @@ type discrepancyDTO struct {
 func (h *Handler) handleBankFile(w http.ResponseWriter, r *http.Request) {
 	report, err := h.svc.ReconcileBankFile(r.Context(), r.Body)
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
-	writeJSON(w, http.StatusOK, report)
+	httpapi.WriteJSON(w, http.StatusOK, report)
 }
 
 func (h *Handler) handleStatement(w http.ResponseWriter, r *http.Request) {
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "missing account id")
+		httpapi.WriteError(w, http.StatusBadRequest, "missing account id")
 		return
 	}
 	stmt, err := h.svc.Statement(r.Context(), accountID)
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
-	writeJSON(w, http.StatusOK, toStatementDTO(stmt))
+	httpapi.WriteJSON(w, http.StatusOK, toStatementDTO(stmt))
 }
 
 // statementDTO 账单响应（金额以元传输）。
 type statementDTO struct {
 	AccountID   string              `json:"account_id"`
-	Opening     *money.Money         `json:"opening_balance"`
-	Closing     *money.Money         `json:"closing_balance"`
+	Opening     *money.Money        `json:"opening_balance"`
+	Closing     *money.Money        `json:"closing_balance"`
 	Entries     []statementEntryDTO `json:"entries"`
 	GeneratedAt time.Time           `json:"generated_at"`
 }
 
 // statementEntryDTO 账单条目（金额以元传输）。
 type statementEntryDTO struct {
-	ID             int64       `json:"id"`
-	Type           string      `json:"type"`
+	ID             int64        `json:"id"`
+	Type           string       `json:"type"`
 	Amount         *money.Money `json:"amount"`
-	Note           string      `json:"note,omitempty"`
-	CreatedAt      time.Time   `json:"created_at"`
+	Note           string       `json:"note,omitempty"`
+	CreatedAt      time.Time    `json:"created_at"`
 	RunningBalance *money.Money `json:"running_balance"`
 }
 
@@ -109,29 +108,13 @@ func toStatementDTO(s *Statement) statementDTO {
 	}
 }
 
-// writeJSON 以 JSON 格式写入响应。
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("reconciliation: write json response: %v", err)
-	}
-}
-
-// writeError 写入错误响应。
-func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-// writeServiceError 将服务错误映射为 HTTP 状态码。
-func writeServiceError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
+// errMapper 服务错误 → HTTP 状态码映射（未识别错误由 httpapi 记日志并返回 500）。
+var errMapper = httpapi.Mapper(func(err error) int {
 	switch {
 	case errors.Is(err, account.ErrNotFound):
-		status = http.StatusNotFound
+		return http.StatusNotFound
 	case errors.Is(err, ErrInvalidCSV):
-		status = http.StatusBadRequest
+		return http.StatusBadRequest
 	}
-	log.Printf("reconciliation: %v", err)
-	writeError(w, status, http.StatusText(status))
-}
+	return 0
+})

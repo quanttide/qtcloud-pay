@@ -23,14 +23,14 @@ def unique(prefix: str) -> str:
     return f"{prefix}-{time.time_ns()}"
 
 
-def _yuan(cents: int) -> float:
-    """分 → 元（API 传输单位；json.dumps 输出两位小数数字）。"""
-    return cents / 100
+def _money(cents: int) -> dict[str, Any]:
+    """分 → 结构化金额对象（API 传输格式：整数分 + CNY）。"""
+    return {"amount": cents, "currency": "CNY"}
 
 
 def _cents(v: Any) -> int:
-    """元 → 分：解析 API 响应中的金额（JSON 数字，元）。"""
-    return int(round(float(v) * 100))
+    """解析 API 响应中的结构化金额对象为分。"""
+    return int(v["amount"])
 
 
 class ApiClient:
@@ -78,14 +78,14 @@ class ApiClient:
     def recharge(self, account_id: str, amount: int, voucher_no: str) -> None:
         status, body = self.post(
             f"/accounts/{account_id}/recharges",
-            {"amount": _yuan(amount), "voucher_no": voucher_no},
+            {"amount": _money(amount), "voucher_no": voucher_no},
         )
         assert status == 200, f"recharge: {status} {body}"
 
     def refund(self, account_id: str, amount: int, voucher_no: str) -> None:
         status, body = self.post(
             f"/accounts/{account_id}/refunds",
-            {"amount": _yuan(amount), "voucher_no": voucher_no},
+            {"amount": _money(amount), "voucher_no": voucher_no},
         )
         assert status == 200, f"refund: {status} {body}"
 
@@ -113,9 +113,9 @@ class ApiClient:
         if rate is not None:
             body["rate"] = rate
         if threshold is not None:
-            body["threshold"] = _yuan(threshold)
+            body["threshold"] = _money(threshold)
         if amount is not None:
-            body["amount"] = _yuan(amount)
+            body["amount"] = _money(amount)
         if product_id is not None:
             body["product_id"] = product_id
         status, resp = self.post(f"/accounts/{account_id}/coupons", body)
@@ -133,7 +133,7 @@ class ApiClient:
         batch_no: str | None = None,
     ) -> None:
         body: dict[str, Any] = {
-            "amount": _yuan(amount),
+            "amount": _money(amount),
             "scope": scope,
             "expires_at": expires_at or future_expiry(),
             "count": count,
@@ -158,7 +158,7 @@ class ApiClient:
             "order_id": order_id,
             "account_id": account_id,
             "scope": scope,
-            "amount": _yuan(amount),
+            "amount": _money(amount),
         }
         if product_id is not None:
             body["product_id"] = product_id

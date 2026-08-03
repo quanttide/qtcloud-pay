@@ -3,11 +3,11 @@ package voucher
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/httpapi"
 	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
@@ -30,20 +30,20 @@ func (h *Handler) Register(mux *http.ServeMux) {
 func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "missing account id")
+		httpapi.WriteError(w, http.StatusBadRequest, "missing account id")
 		return
 	}
 	var req struct {
 		Amount    *money.Money `json:"amount"`
-		Scope     string      `json:"scope"`
-		ProductID string      `json:"product_id"`
-		ExpiresAt time.Time   `json:"expires_at"`
-		Count     int         `json:"count"`
-		BatchNo   string      `json:"batch_no"`
-		Note      string      `json:"note"`
+		Scope     string       `json:"scope"`
+		ProductID string       `json:"product_id"`
+		ExpiresAt time.Time    `json:"expires_at"`
+		Count     int          `json:"count"`
+		BatchNo   string       `json:"batch_no"`
+		Note      string       `json:"note"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	err := h.svc.Issue(r.Context(), &IssueRequest{
@@ -57,10 +57,10 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 		Note:      req.Note,
 	})
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	httpapi.WriteJSON(w, http.StatusOK, map[string]any{
 		"account_id": accountID,
 		"batch_no":   req.BatchNo,
 		"count":      req.Count,
@@ -69,16 +69,16 @@ func (h *Handler) handleIssue(w http.ResponseWriter, r *http.Request) {
 
 // voucherDTO 代金券响应（金额以元传输）。
 type voucherDTO struct {
-	ID        int64       `json:"id"`
-	AccountID string      `json:"account_id"`
+	ID        int64        `json:"id"`
+	AccountID string       `json:"account_id"`
 	Amount    *money.Money `json:"amount"`
-	Scope     string      `json:"scope"`
-	ProductID string      `json:"product_id,omitempty"`
-	ExpiresAt time.Time   `json:"expires_at"`
-	Status    string      `json:"status"`
-	UsedAt    *time.Time  `json:"used_at,omitempty"`
-	OrderID   string      `json:"order_id,omitempty"`
-	CreatedAt time.Time   `json:"created_at"`
+	Scope     string       `json:"scope"`
+	ProductID string       `json:"product_id,omitempty"`
+	ExpiresAt time.Time    `json:"expires_at"`
+	Status    string       `json:"status"`
+	UsedAt    *time.Time   `json:"used_at,omitempty"`
+	OrderID   string       `json:"order_id,omitempty"`
+	CreatedAt time.Time    `json:"created_at"`
 }
 
 func toVoucherDTO(v Voucher) voucherDTO {
@@ -92,45 +92,29 @@ func toVoucherDTO(v Voucher) voucherDTO {
 func (h *Handler) handleList(w http.ResponseWriter, r *http.Request) {
 	accountID := strings.TrimSpace(r.PathValue("id"))
 	if accountID == "" {
-		writeError(w, http.StatusBadRequest, "missing account id")
+		httpapi.WriteError(w, http.StatusBadRequest, "missing account id")
 		return
 	}
 	list, err := h.svc.List(r.Context(), accountID)
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
 	dtos := make([]voucherDTO, 0, len(list))
 	for _, v := range list {
 		dtos = append(dtos, toVoucherDTO(v))
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	httpapi.WriteJSON(w, http.StatusOK, map[string]any{
 		"account_id": accountID,
 		"vouchers":   dtos,
 	})
 }
 
-// writeJSON 以 JSON 格式写入响应。
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("voucher: write json response: %v", err)
-	}
-}
-
-// writeError 写入错误响应。
-func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-// writeServiceError 将服务错误映射为 HTTP 状态码。
-func writeServiceError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
+// errMapper 服务错误 → HTTP 状态码映射（未识别错误由 httpapi 记日志并返回 500）。
+var errMapper = httpapi.Mapper(func(err error) int {
 	switch {
 	case errors.Is(err, ErrInvalidIssue):
-		status = http.StatusBadRequest
+		return http.StatusBadRequest
 	}
-	log.Printf("voucher: %v", err)
-	writeError(w, status, http.StatusText(status))
-}
+	return 0
+})

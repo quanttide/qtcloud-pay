@@ -3,7 +3,6 @@ package order
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/billing"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/httpapi"
 	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/money"
 )
 
@@ -33,15 +33,15 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		OrderID    string      `json:"order_id"`
-		CustomerID string      `json:"customer_id"`
-		AccountID  string      `json:"account_id"`
-		ProductID  string      `json:"product_id"`
-		Scope      string      `json:"scope"`
+		OrderID    string       `json:"order_id"`
+		CustomerID string       `json:"customer_id"`
+		AccountID  string       `json:"account_id"`
+		ProductID  string       `json:"product_id"`
+		Scope      string       `json:"scope"`
 		Amount     *money.Money `json:"amount"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body")
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	order, err := h.svc.Settle(r.Context(), &SettleRequest{
@@ -49,24 +49,24 @@ func (h *Handler) handleSettle(w http.ResponseWriter, r *http.Request) {
 		ProductID: req.ProductID, Scope: req.Scope, Amount: money.CentsOf(req.Amount),
 	})
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
-	writeJSON(w, http.StatusCreated, toOrderDTO(order))
+	httpapi.WriteJSON(w, http.StatusCreated, toOrderDTO(order))
 }
 
 func (h *Handler) handleGet(w http.ResponseWriter, r *http.Request) {
 	orderID := strings.TrimSpace(r.PathValue("id"))
 	if orderID == "" {
-		writeError(w, http.StatusBadRequest, "missing order id")
+		httpapi.WriteError(w, http.StatusBadRequest, "missing order id")
 		return
 	}
 	order, err := h.svc.Get(r.Context(), orderID)
 	if err != nil {
-		writeServiceError(w, err)
+		httpapi.WriteServiceError(w, err, errMapper)
 		return
 	}
-	writeJSON(w, http.StatusOK, toOrderDTO(order))
+	httpapi.WriteJSON(w, http.StatusOK, toOrderDTO(order))
 }
 
 // orderDTO 订单响应（金额以元传输）。
@@ -76,7 +76,7 @@ type orderDTO struct {
 	AccountID    string          `json:"account_id"`
 	ProductID    string          `json:"product_id,omitempty"`
 	Scope        string          `json:"scope,omitempty"`
-	Amount       *money.Money     `json:"amount"`
+	Amount       *money.Money    `json:"amount"`
 	Status       string          `json:"status"`
 	SettleDetail json.RawMessage `json:"settle_detail,omitempty"`
 	CreatedAt    time.Time       `json:"created_at"`
@@ -92,7 +92,7 @@ func toOrderDTO(o *Order) orderDTO {
 	}
 }
 
-// formatSettleDetail 将结算明细快照中的金额（存储为分）转为元。
+// formatSettleDetail 将结算明细快照中的金额（存储为分）转为 Money 对象（整数分 + CNY）。
 func formatSettleDetail(raw json.RawMessage) json.RawMessage {
 	if len(raw) == 0 || string(raw) == "null" {
 		return raw
@@ -106,8 +106,8 @@ func formatSettleDetail(raw json.RawMessage) json.RawMessage {
 		return raw
 	}
 	type detailOut struct {
-		Kind   string      `json:"kind"`
-		RefID  int64       `json:"ref_id"`
+		Kind   string       `json:"kind"`
+		RefID  int64        `json:"ref_id"`
 		Amount *money.Money `json:"amount"`
 	}
 	out := make([]detailOut, 0, len(ds))
@@ -121,33 +121,17 @@ func formatSettleDetail(raw json.RawMessage) json.RawMessage {
 	return b
 }
 
-// writeJSON 以 JSON 格式写入响应。
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if err := json.NewEncoder(w).Encode(v); err != nil {
-		log.Printf("order: write json response: %v", err)
-	}
-}
-
-// writeError 写入错误响应。
-func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
-}
-
-// writeServiceError 将服务错误映射为 HTTP 状态码。
-func writeServiceError(w http.ResponseWriter, err error) {
-	status := http.StatusInternalServerError
+// errMapper 服务错误 → HTTP 状态码映射（未识别错误由 httpapi 记日志并返回 500）。
+var errMapper = httpapi.Mapper(func(err error) int {
 	switch {
 	case errors.Is(err, account.ErrNotFound):
-		status = http.StatusNotFound
+		return http.StatusNotFound
 	case errors.Is(err, billing.ErrInsufficientBalance):
-		status = http.StatusUnprocessableEntity
+		return http.StatusUnprocessableEntity
 	case errors.Is(err, ErrInvalidRequest), errors.Is(err, billing.ErrInvalidAmount):
-		status = http.StatusBadRequest
+		return http.StatusBadRequest
 	case errors.Is(err, coupon.ErrUnavailable), errors.Is(err, voucher.ErrUnavailable):
-		status = http.StatusConflict
+		return http.StatusConflict
 	}
-	log.Printf("order: %v", err)
-	writeError(w, status, http.StatusText(status))
-}
+	return 0
+})

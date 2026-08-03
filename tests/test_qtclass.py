@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import time
 
-from tests.api import ApiClient, future_expiry, unique
+from tests.api import ApiClient, _money, future_expiry, unique
 
 
 def test_a01_recharge_idempotent(api: ApiClient) -> None:
@@ -144,7 +144,7 @@ def test_a07_insufficient_balance_rollback(api: ApiClient) -> None:
             "order_id": order_id,
             "account_id": acc,
             "scope": "course",
-            "amount": 10000,
+            "amount": _money(10000),
         },
     )
     assert status == 422, f"status = {status}, want 422"

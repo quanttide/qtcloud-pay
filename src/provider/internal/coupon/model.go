@@ -1,6 +1,10 @@
 package coupon
 
-import "time"
+import (
+	"time"
+
+	paystatus "github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/status"
+)
 
 // 优惠券类型。
 const (
@@ -17,11 +21,11 @@ const (
 	ScopeProduct = "product" // 指定商品
 )
 
-// 状态。
+// 状态（契约来自工具库 pkg/status）。
 const (
-	StatusIssued  = "issued"  // 已发放
-	StatusUsed    = "used"    // 已使用
-	StatusExpired = "expired" // 已过期
+	StatusIssued  = string(paystatus.CouponStatusIssued)  // 已发放
+	StatusUsed    = string(paystatus.CouponStatusUsed)    // 已使用
+	StatusExpired = string(paystatus.CouponStatusExpired) // 已过期
 )
 
 // Coupon 优惠券：按规则抵扣的优惠手段，本身不代表钱，是一条规则。

@@ -3,31 +3,23 @@ package voucher
 import (
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 )
 
-func TestWriteServiceError(t *testing.T) {
+func TestErrMapper(t *testing.T) {
 	cases := []struct {
+		name string
 		err  error
 		want int
 	}{
-		{ErrInvalidIssue, http.StatusBadRequest},
-		{errors.New("boom"), http.StatusInternalServerError},
+		{"invalid issue", ErrInvalidIssue, http.StatusBadRequest},
+		{"unhandled", errors.New("boom"), 0},
 	}
 	for _, c := range cases {
-		w := httptest.NewRecorder()
-		writeServiceError(w, c.err)
-		if w.Code != c.want {
-			t.Errorf("err=%v status=%d, want %d", c.err, w.Code, c.want)
-		}
-	}
-}
-
-func TestWriteJSON_EncodeError(t *testing.T) {
-	w := httptest.NewRecorder()
-	writeJSON(w, http.StatusOK, make(chan int))
-	if w.Code != http.StatusOK {
-		t.Errorf("status = %d, want 200", w.Code)
+		t.Run(c.name, func(t *testing.T) {
+			if got := errMapper(c.err); got != c.want {
+				t.Errorf("errMapper(%v) = %d, want %d", c.err, got, c.want)
+			}
+		})
 	}
 }
