@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.5] - 2026-08-03
+
+### Fixed
+- ACR 幂等创建步骤修复：换 `setup-aliyun-cli-action` 注入凭证（原 `aliyun-cli-action` 凭证输入无效）、改用实例版 API（`ListInstance` 取个人版实例 ID + `--InstanceId` 参数）、去掉错误吞没（`Get` 查存在才创建，失败即 fail）——此前命名空间/仓库从未创建成功，push 报 `insufficient_scope`
+
+### Changed
+- 新增 CI 维护指南 `docs/dev-guide/ci.md`：凭证体系、踩坑记录、调试方法与维护清单（iac.md 互链）
+
 ## [0.1.0-alpha.4] - 2026-08-03
 
 ### Added
