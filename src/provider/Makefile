@@ -22,7 +22,7 @@ docker-build: ## 构建 Docker 镜像（含 SQLite CGO 依赖）
 
 docker-run: ## 本地以 Docker 运行（SQLite 文件库挂载到 ./data）
 	docker run --rm -p 8080:8080 \
-		-e DB_DRIVER=sqlite -e DB_SQLITE_DSN=/data/pay.db \
+		-e DB_DRIVER=sqlite -e DB_SQLITE_DSN=/data/qtcloud-pay.db \
 		-v "$(PWD)/data:/data" \
 		qtcloud-pay-provider:latest
 

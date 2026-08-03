@@ -69,7 +69,7 @@ func OpenDB() (*gorm.DB, error) {
 	}
 	dsn := os.Getenv("DB_SQLITE_DSN")
 	if dsn == "" {
-		dsn = "qtcloud.db"
+		dsn = "qtcloud-pay.db"
 	}
 	return Open("sqlite", dsn)
 }

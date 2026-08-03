@@ -22,7 +22,7 @@ switch os.Getenv("DB_DRIVER") {
 case "postgres":
     db, err = gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")))
 default: // sqlite（开发默认）
-    db, err = gorm.Open(sqlite.Open("qtcloud.db"))
+    db, err = gorm.Open(sqlite.Open("qtcloud-pay.db"))
 }
 db.AutoMigrate(
     &account.Account{}, &transaction.Transaction{},

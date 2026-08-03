@@ -46,7 +46,7 @@ func TestOpen_PostgresInvalidDSN(t *testing.T) {
 }
 
 func TestOpenDB_DefaultDSN(t *testing.T) {
-	// 不设置 DB_SQLITE_DSN → 使用默认 qtcloud.db（在临时目录中）
+	// 不设置 DB_SQLITE_DSN → 使用默认 qtcloud-pay.db（在临时目录中）
 	t.Chdir(t.TempDir())
 	t.Setenv("DB_DRIVER", "")
 	t.Setenv("DB_SQLITE_DSN", "")
