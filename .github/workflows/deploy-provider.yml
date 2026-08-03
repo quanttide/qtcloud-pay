@@ -24,7 +24,7 @@ concurrency:
 
 env:
   TF_VAR_region: cn-hangzhou
-  TF_VAR_environment: dev
+  TF_VAR_environment: prod
   TF_STATE_BUCKET: quanttide-terraform-state
   TF_STATE_KEY: qtcloud-pay/terraform.tfstate
 

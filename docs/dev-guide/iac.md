@@ -90,4 +90,4 @@ terraform output
 - **数据库密码会明文落入 tfstate**:当前为最小化实现,后续应改用密钥管理/配置中心注入
 - **状态存储**:已迁移到 OSS 远端后端(`quanttide-terraform-state`),初始化命令见上;多人协作无需再担心状态丢失
 - **镜像发布**:`image` 变量指向的容器镜像需已发布(Docker Hub 公开仓库或 ACR),FC 才能拉取
-- **环境划分**:dev 默认 `serverless_basic`(单节点);prod 切换 `serverless_standard`(高可用)
+- **环境划分**:默认 `prod`(`TF_VAR_environment`);RDS 系列为 `serverless_basic`(单节点),如需高可用可切换 `serverless_standard`

@@ -1,5 +1,6 @@
 # 复制为 terraform.tfvars 并填写实际值
 region           = "cn-hangzhou"
-environment      = "dev"
+environment      = "prod"
+db_username      = "qtcloud_pay"
 db_password      = "ChangeMe123!"
 image            = "quanttide/qtcloud-pay-provider:latest"

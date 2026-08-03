@@ -13,7 +13,7 @@ variable "project" {
 variable "environment" {
   description = "环境：dev / prod"
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 variable "vpc_cidr" {
@@ -37,7 +37,7 @@ variable "db_name" {
 variable "db_username" {
   description = "RDS 数据库账号名"
   type        = string
-  default     = "qtpay"
+  default     = "qtcloud_pay"
 }
 
 variable "db_password" {
