@@ -9,6 +9,33 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 
 选型依据支付工程日志的部署决策,详见 [manifests/terraform/README.md](../../manifests/terraform/README.md)。**API 网关(`api.quanttide.com`)为系统层面预留,不在本 IaC 范围内。**
 
+## 命名规则
+
+资源命名按「层级 + 环境」分层:前缀决定归属,环境后缀决定隔离。
+
+### 前缀分层
+
+| 层级 | 前缀 | 资源 | 例子(prod) |
+|------|------|------|-----------|
+| 系统级(quanttide 体系统一管理) | `quanttide-<env>` | VPC / 交换机 / 安全组 / RDS 实例 | `quanttide-prod` |
+| 应用级 | `<app>-<env>` | FC 函数、RAM 角色 | `qtcloud-pay-prod`、`qtcloud-pay-prod-fc` |
+| 应用级(数据库) | `<app>`(下划线) | RDS 数据库与账号 | `qtcloud_pay` |
+
+- **系统级资源是共享的**(VPC/RDS 供各应用共用),未来抽离到系统级 IaC 统一管理;应用级资源归属 qtcloud-pay 自身
+- RAM 角色加 `-fc` 后缀(`qtcloud-pay-prod-fc`),按职责区分
+- 多环境(dev/staging/prod)通过 `environment` 变量隔离命名;若多环境共享同一 RDS 实例,数据库名需带环境后缀(如 `qtcloud_pay_dev`)
+
+### 其他命名约定
+
+| 对象 | 规则 | 例子 |
+|------|------|------|
+| Docker 镜像 | `<用户名>/qtcloud-pay-<组件>` | `qtcloud-pay-provider`(为 cli/studio 预留 `qtcloud-pay-cli` / `qtcloud-pay-studio`) |
+| OSS 状态桶 | `quanttide-terraform-state`(系统级共享) | — |
+| state key | `<app>/terraform.tfstate`;多环境按环境分 key | `qtcloud-pay/terraform.tfstate` |
+| GitHub secrets | 全大写蛇形,语义化 | `ALIYUN_ACCESS_KEY_ID` / `DB_PASSWORD` / `DOCKERHUB_USERNAME` |
+| 版本 tag | `<scope>/vX.Y.Z`(qtcloud-devops release) | `provider/v0.1.0-alpha.1` |
+| API 域名 | `api.quanttide.com/<app>`(系统级预留) | `api.quanttide.com/qtcloud-pay` |
+
 ## 环境准备
 
 ### 1. 阿里云凭证（机器级配置）
@@ -52,8 +79,8 @@ export ALICLOUD_PROFILE=default
 
 ### 3. CI 凭证（GitHub Actions）
 
-- AccessKey 配置在 **GitHub org secrets**(`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY`),org 内仓库可用
-- workflow 中通过 `${{ secrets.ALICLOUD_ACCESS_KEY }}` 注入环境变量
+- AccessKey 配置在 **GitHub org secrets**(`ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET`),org 内仓库可用
+- workflow 中通过 `${{ secrets.ALIYUN_ACCESS_KEY_ID }}` 注入 provider 环境变量(`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY`)
 - 后续升级:**OIDC 联邦**(RAM 角色信任 GitHub OIDC),CI 不再需要长期 Secret Key
 
 ## 使用
@@ -80,7 +107,7 @@ terraform output
 
 ## CI 部署
 
-推送 `provider/*` tag（如 `provider/v0.1.0`）触发 [.github/workflows/deploy-provider.yml](../../.github/workflows/deploy-provider.yml) 自动 `terraform apply`。所需 org secrets：`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY` / `DB_PASSWORD`。
+推送 `provider/*` tag（如 `provider/v0.1.0`）触发 [.github/workflows/deploy-provider.yml](../../.github/workflows/deploy-provider.yml) 自动 `terraform apply`。所需 org secrets：`ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` / `DB_PASSWORD` / `DOCKERHUB_USERNAME` / `DOCKERHUB_PASSWORD`。
 
 常用变量见 [variables.tf](../../manifests/terraform/variables.tf);待办与排期见 [TODO.md](../../manifests/terraform/TODO.md)。
 
