@@ -23,7 +23,7 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 
 - **系统级资源是共享的**(VPC/RDS 供各应用共用),未来抽离到系统级 IaC 统一管理;应用级资源归属 qtcloud-pay 自身
 - RAM 角色加 `-fc` 后缀(`qtcloud-pay-prod-fc`),按职责区分
-- 多环境(dev/staging/prod)通过 `environment` 变量隔离命名;若多环境共享同一 RDS 实例,数据库名需带环境后缀(如 `qtcloud_pay_dev`)
+- 多环境(dev/staging/prod)通过 `environment` 变量隔离命名,**每个环境独立一套系统级资源**(独立 VPC / RDS 实例,`quanttide-<env>`),数据库名因此无需环境后缀(各环境互不冲突)
 
 ### 其他命名约定
 
