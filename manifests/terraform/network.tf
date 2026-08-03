@@ -4,8 +4,9 @@ data "alicloud_zones" "default" {
 }
 
 resource "alicloud_vpc" "this" {
-  vpc_name   = local.name_prefix
-  cidr_block = var.vpc_cidr
+  vpc_name          = local.name_prefix
+  cidr_block        = var.vpc_cidr
+  resource_group_id = local.resource_group_id
 }
 
 resource "alicloud_vswitch" "this" {
@@ -19,4 +20,5 @@ resource "alicloud_vswitch" "this" {
 resource "alicloud_security_group" "this" {
   security_group_name = local.name_prefix
   vpc_id              = alicloud_vpc.this.id
+  resource_group_id   = local.resource_group_id
 }

@@ -26,15 +26,16 @@ resource "alicloud_ram_role_policy_attachment" "fc_vpc" {
 
 # 函数计算（FC 3.0）：custom-container 容器镜像，VPC 内网访问 RDS（应用级）
 resource "alicloud_fcv3_function" "this" {
-  function_name   = local.app_name_prefix
-  description     = "qtcloud-pay 账本核心 API"
-  runtime         = "custom-container"
-  handler         = "index.handler" # custom-container 必填占位，实际由容器监听端口决定
-  cpu             = 0.5
-  memory_size     = var.fc_memory
-  timeout         = var.fc_timeout
-  internet_access = true
-  role            = alicloud_ram_role.fc.arn
+  function_name     = local.app_name_prefix
+  description       = "qtcloud-pay 账本核心 API"
+  runtime           = "custom-container"
+  handler           = "index.handler" # custom-container 必填占位，实际由容器监听端口决定
+  cpu               = 0.5
+  memory_size       = var.fc_memory
+  timeout           = var.fc_timeout
+  internet_access   = true
+  role              = alicloud_ram_role.fc.arn
+  resource_group_id = local.resource_group_id
 
   vpc_config {
     vpc_id            = alicloud_vpc.this.id

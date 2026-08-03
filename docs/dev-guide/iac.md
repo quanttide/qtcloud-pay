@@ -31,6 +31,7 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 |------|------|------|
 | Docker 镜像 | `<用户名>/qtcloud-pay-<组件>` | `qtcloud-pay-provider`(为 cli/studio 预留 `qtcloud-pay-cli` / `qtcloud-pay-studio`) |
 | OSS 状态桶 | `quanttide-terraform-state`(系统级共享) | — |
+| 资源组 | `quanttide`(所有资源统一归入,权限/成本按组管控) | VPC/安全组/RDS 实例/FC 函数 |
 | state key | `<app>/terraform.tfstate`;多环境按环境分 key | `qtcloud-pay/terraform.tfstate` |
 | GitHub secrets | 全大写蛇形,语义化 | `ALIYUN_ACCESS_KEY_ID` / `DB_PASSWORD` / `DOCKERHUB_USERNAME` |
 | 版本 tag | `<scope>/vX.Y.Z`(qtcloud-devops release) | `provider/v0.1.0-alpha.1` |

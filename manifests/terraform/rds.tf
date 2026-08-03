@@ -17,7 +17,8 @@ resource "alicloud_db_instance" "this" {
     auto_pause   = true
     switch_force = false
   }
-  instance_name = local.name_prefix
+  instance_name     = local.name_prefix
+  resource_group_id = local.resource_group_id
   tags = {
     project     = var.project
     environment = var.environment
