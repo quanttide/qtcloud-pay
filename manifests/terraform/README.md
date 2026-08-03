@@ -7,7 +7,7 @@
 | 维度 | 选型 | 说明 |
 |------|------|------|
 | 数据库 | 阿里云 RDS Serverless（PostgreSQL） | 与 provider 技术方案一致（开发 SQLite / 生产 PostgreSQL，GORM 方言切换）；Serverless 免运维、按需扩缩 |
-| 服务计算 | FaaS（函数计算）+ 容器镜像 | Dockerfile 发布 Dockerhub，阿里云镜像拉取或官方仓库直接拉取；服务无需常驻、按调用计费 |
+| 服务计算 | FaaS（函数计算）+ 容器镜像 | Dockerfile 构建镜像，双通道发布（Docker Hub 对外分发 + 阿里云 ACR 同地域直拉，FC 中国区拉不到 Docker Hub）；服务无需常驻、按调用计费 |
 | 存储与网络 | 随计算/数据库一并解决 | VPC 内网互通（RDS ↔ FC） |
 | API 网关 | **预留（系统层面统一规划）** | 统一 `api.quanttide.com`，路径按应用名（如 `/qtcloud-pay`）；不在本应用 IaC 范围内，由系统级网关统一接入 |
 
@@ -27,7 +27,7 @@
 
 - [x] 按此方案设计 Terraform（IaC）：VPC + RDS Serverless + FC 服务
 - [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，init 需带 `-backend-config`）
-- [x] Dockerfile 已就绪（多阶段构建 + 非 root）；镜像由 deploy-provider workflow 构建发布（`<DockerHub用户>/qtcloud-pay-provider`，为 cli/studio 等预留命名空间）
+- [x] Dockerfile 已就绪（多阶段构建 + 非 root）；镜像由 deploy-provider workflow 双通道发布（Docker Hub + ACR `quanttide/qtcloud-pay-provider`，为 cli/studio 等预留命名空间）
 - [ ] 环境划分（dev / prod）与配置管理（`DB_DRIVER` / `DATABASE_URL` 等，对齐 provider 技术方案）
 - [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`（系统层面预留，另行规划）
 

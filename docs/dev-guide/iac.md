@@ -29,7 +29,7 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 
 | 对象 | 规则 | 例子 |
 |------|------|------|
-| Docker 镜像 | `<用户名>/qtcloud-pay-<组件>` | `qtcloud-pay-provider`(为 cli/studio 预留 `qtcloud-pay-cli` / `qtcloud-pay-studio`) |
+| Docker 镜像 | ACR:`registry.cn-hangzhou.aliyuncs.com/quanttide/qtcloud-pay-<组件>`(部署用,FC 同地域直拉)；Docker Hub:`<用户名>/qtcloud-pay-<组件>`(对外分发,双通道发布) | `qtcloud-pay-provider`(为 cli/studio 预留 `qtcloud-pay-cli` / `qtcloud-pay-studio`) |
 | OSS 状态桶 | `quanttide-terraform-state`(系统级共享) | — |
 | 资源组 | `quanttide`(所有资源统一归入,权限/成本按组管控) | VPC/安全组/RDS 实例/FC 函数 |
 | state key | `<app>/terraform.tfstate`;多环境按环境分 key | `qtcloud-pay/terraform.tfstate` |
@@ -64,6 +64,26 @@ aliyun rds CheckServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole Ali
 ```
 
 > 踩坑记录：`alicloud_rds_service_linked_role` terraform 资源只接受 `AliyunServiceRoleForRdsPgsqlOnEcs` / `AliyunServiceRoleForRDSProxyOnEcs` 两个值，且角色已存在时行为不确定，因此不在 IaC 中管理，改为文档化的一次性前置。
+
+### 0.5 ACR 命名空间与镜像仓库
+
+FC 中国区无法拉取 Docker Hub 镜像（registry not reachable），部署镜像固定走同地域 ACR 公开仓库。ACR 个人版（免费）的命名空间/仓库在 terraform provider 中对应资源已弃用（v1.276.0 起，建议迁移企业版），因此不进 IaC，由 **CI 在构建时幂等创建**（见 deploy-provider.yml「Ensure ACR Namespace & Repo」），一般无需人工操作。
+
+如需手动创建（如先在控制台建好、或排查 CI 失败）：
+
+```sh
+# 命名空间（quanttide 体系共享，已存在则跳过）
+aliyun cr CreateNamespace --Namespace quanttide --NamespaceStatus PUBLIC
+
+# 镜像仓库（PUBLIC：FC 无需凭证直拉；应用级，按组件命名）
+aliyun cr CreateRepository \
+  --Namespace quanttide \
+  --RepoName qtcloud-pay-provider \
+  --RepoType PUBLIC \
+  --Summary "qtcloud-pay 账本核心 API 镜像"
+```
+
+> 说明：后续如升级 ACR 企业版（需实例，付费），可将命名空间/仓库改回 IaC 管理（`alicloud_cr_ee_namespace` / `alicloud_cr_ee_repo`）。
 
 ### 1. 阿里云凭证（机器级配置）
 
@@ -108,6 +128,7 @@ export ALICLOUD_PROFILE=default
 
 - AccessKey 配置在 **GitHub org secrets**(`ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET`),org 内仓库可用
 - workflow 中通过 `${{ secrets.ALIYUN_ACCESS_KEY_ID }}` 注入 provider 环境变量(`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY`)
+- **ACR 登录**:用 org secrets `ALIYUN_ACR_USERNAME` / `ALIYUN_ACR_PASSWORD` / `ALIYUN_ACR_REGISTRY`（ACR 个人版固定凭证）直接 `docker login`；命名空间/仓库由 CI 幂等创建（用 AccessKey，`PowerUserAccess` 已含 ACR 权限）
 - 后续升级:**OIDC 联邦**(RAM 角色信任 GitHub OIDC),CI 不再需要长期 Secret Key
 
 ## 使用
@@ -136,13 +157,15 @@ terraform output
 
 推送 `provider/*` tag（如 `provider/v0.1.0`）触发 [.github/workflows/deploy-provider.yml](../../.github/workflows/deploy-provider.yml) 自动 `terraform apply`。所需 org secrets：`ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` / `DB_PASSWORD` / `DOCKERHUB_USERNAME` / `DOCKERHUB_PASSWORD`。
 
+镜像**双通道发布**（Docker Hub + ACR），部署用镜像固定指向 ACR（FC 中国区拉不到 Docker Hub）；ACR 命名空间/仓库为一次性前置（个人版资源在 provider 中已弃用，不进 IaC，见「0.5 创建 ACR 命名空间与镜像仓库」）。
+
 常用变量见 [variables.tf](../../manifests/terraform/variables.tf);待办与排期见 [TODO.md](../../manifests/terraform/TODO.md)。
 
 ## 注意事项
 
 - **数据库密码会明文落入 tfstate**:当前为最小化实现,后续应改用密钥管理/配置中心注入
 - **状态存储**:已迁移到 OSS 远端后端(`quanttide-terraform-state`),初始化命令见上;多人协作无需再担心状态丢失
-- **镜像发布**:`image` 变量指向的容器镜像需已发布(Docker Hub 公开仓库或 ACR),FC 才能拉取
+- **镜像发布**:`image` 变量默认指向 ACR 公开仓库(`registry.cn-hangzhou.aliyuncs.com/quanttide/qtcloud-pay-provider`),FC 中国区可直拉;Docker Hub 在中国区不可达,仅作对外分发(双通道,见 deploy workflow)
 - **环境划分**:默认 `prod`(`TF_VAR_environment`);RDS 系列固定 `serverless_basic`(单节点)
 
 ## 生产保护（防误删）
