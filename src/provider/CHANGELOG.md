@@ -2,8 +2,18 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.4] - 2026-08-03
+
 ### Added
+- 镜像双通道发布（Docker Hub + ACR）：FC 中国区无法拉取 Docker Hub 镜像（registry not reachable），部署镜像改用同地域 ACR 公开仓库直拉；CI 幂等创建 ACR 命名空间/仓库，登录使用 org secrets 固定凭证（`ALIYUN_ACR_USERNAME` / `ALIYUN_ACR_PASSWORD` / `ALIYUN_ACR_REGISTRY`）
 - 新增 `docker-compose.yml`：本地一键构建并启动账本核心服务（SQLite 挂载 `./data` 持久化），Makefile 增加 `docker-up` / `docker-down`
+
+### Changed
+- 系统级资源（VPC/交换机/安全组/RDS 实例）移交 quanttide-platform 仓库管理：qtcloud-pay 改为引用远端状态（`platform.tf`），本地 IaC 仅保留数据库/账号与 FC；FC 3.0 补必填 `disk_size`
+- SQLite 默认库名统一为 `qtcloud-pay.db`（app 默认 DSN / 容器 / Makefile / 文档）
+
+### Fixed
+- RDS Serverless 重建为 PostgreSQL 18：计费方式必须为 `Serverless`（Postpaid 非法）、可用区 cn-hangzhou-k（B 区无库存）、升级预检查确认 17→18 合法（官方文档过时）
 
 ## [0.1.0-alpha.3] - 2026-08-03
 
