@@ -10,6 +10,7 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	transactiongorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transaction/gorm"
+	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/ledger"
 )
 
 // setupDB 创建内存 SQLite 测试库（单连接保证 :memory: 一致）。
@@ -264,7 +265,7 @@ func TestSum_DBError(t *testing.T) {
 
 func TestSignedAmountAndAffectsBalance(t *testing.T) {
 	cases := []struct {
-		typ     string
+		typ     ledger.Type
 		amount  int64
 		signed  int64
 		affects bool

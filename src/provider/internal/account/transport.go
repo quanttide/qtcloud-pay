@@ -63,7 +63,7 @@ type txDTO struct {
 
 func toTxDTO(t transaction.Transaction) txDTO {
 	return txDTO{
-		ID: t.ID, AccountID: t.AccountID, Type: t.Type,
+		ID: t.ID, AccountID: t.AccountID, Type: string(t.Type),
 		Amount: money.New(t.Amount, money.CNY), BalanceAfter: money.New(t.BalanceAfter, money.CNY),
 		OrderID: t.OrderID, Note: t.Note, CreatedAt: t.CreatedAt,
 	}

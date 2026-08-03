@@ -16,7 +16,7 @@
 type Transaction struct {
     ID             int64
     AccountID      string
-    Type           string // recharge/refund/consume/issue/redeem（充值/退款/消费/发券/核销）
+    Type           ledger.Type // recharge/refund/consume/issue/redeem（契约见工具库 pkg/ledger）
     Amount         int64  // 分；发券/核销为信息性记录，不参与余额求和
     BalanceAfter   int64  // 交易后余额快照，供对账与客诉
     OrderID        string // 消费/核销时关联订单

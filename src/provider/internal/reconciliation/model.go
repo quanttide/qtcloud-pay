@@ -67,7 +67,7 @@ func toStatementEntries(txs []transaction.Transaction, opening int64) []Statemen
 			running += t.SignedAmount()
 		}
 		entries = append(entries, StatementEntry{
-			ID: t.ID, Type: t.Type, Amount: t.Amount, Note: t.Note,
+			ID: t.ID, Type: string(t.Type), Amount: t.Amount, Note: t.Note,
 			CreatedAt: t.CreatedAt, RunningBalance: running,
 		})
 	}
