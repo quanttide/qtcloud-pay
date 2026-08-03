@@ -8,6 +8,21 @@
 - **按量/按次扣费**：`consume`（课堂按学习扣费、云按量、数据按交付进度）
 - **多退少补**：退款登记 `POST /accounts/{id}/refunds`（`refund:{voucher_no}` 幂等，余额不足 422）+ 再充值
 
+## 缺陷修复（2026-08-03 代码评审，未开始）
+
+| # | 优先级 | 问题 | 落点 | 状态 |
+|---|--------|------|------|------|
+| F1 | P0 | 账本 API 零认证 + FC 触发器 `anonymous`：公网任意人可充值/退款/发券，**生产阻塞**（网关未接入前必须有应用层鉴权） | `internal/middleware` 新增鉴权中间件，`app.BuildMux` 挂载 | 未开始 |
+| F2 | P0 | 微信金额 float64 元→分 `int(x*100)` 截断精度错误（0.29→28 分） | `internal/channel` 模型改 int64 分（对齐 `money.Cents`），删 `*100` 转换与 `parseAmount` | 未开始 |
+| F3 | P1 | 支付通知无回调路由：`ParseNotify` 已实现未挂载，支付成功无法入账 | `channel.RegisterRoutes` 补 `POST /notify` + 回调验签（与 T5 联动） | 未开始 |
+| F4 | P1 | 微信退款参数错误：`TotalAmount` 填了退款金额（应原单总额）；`OutRefundNo=OrderID+"-REFUND"` 同一订单只能退一次 | `internal/channel/adapters.go` Refund：TotalAmount 传原单总额、OutRefundNo 独立生成 | 未开始 |
+| F5 | P1 | 支付宝退款固定返回 SUCCESS，无退款状态查询，对账不可信 | `internal/channel/alipay` 补退款查询（alipay.trade.fastpay.refund.query） | 未开始 |
+| F6 | P1 | 渠道 API 错误一律 500（参数错误应 400）；`openid` 缺失时静默传空串 | `internal/channel/transport.go` 参数校验 400、openid 必填校验 | 未开始 |
+| F7 | P1 | 微信证书序列号 `Text(16)` 小写且去前导零，未按微信大写十六进制规范（待联调验证，若失败须 ToUpper+补零） | `internal/channel/wechat` parseCertSerial | 未开始 |
+| F8 | P2 | DB 密码明文落 tfstate（已记录于部署语境，未解决） | `manifests/terraform` 环境变量改密钥管理注入 + `app.go` 配置读取 | 未开始 |
+
+P2 小项（随迭代清理）：`channel.Server` 死代码（NewServer/Start/Close/Shutdown/SetHandler 无人调用）；`Logging` 无 recover/request ID；AutoMigrate 生产 schema 无版本化；渠道下单/查询未落 `order` 表（与 T5 一并设计）。
+
 ## v0.2.0 引擎解耦与支付通道（计划）
 
 | # | 优先级 | 任务 | 落点 | 状态 |
