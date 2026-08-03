@@ -1,7 +1,7 @@
-# 服务关联角色：RDS PostgreSQL 首次开通前必须存在（账号级一次性前置）
-resource "alicloud_rds_service_linked_role" "pgsql" {
-  service_name = "AliyunServiceRoleForRdsPgsql"
-}
+# RDS PostgreSQL 服务关联角色（AliyunServiceRoleForRdsPgsqlOnEcs）为账号级一次性前置，
+# 已创建。如需在新账号复现：
+#   aliyun rds CreateServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole AliyunServiceRoleForRdsPgsqlOnEcs
+# 详见 docs/dev-guide/iac.md「环境准备」
 
 # 系统级共享 RDS PostgreSQL Serverless（按量计费、自动暂停；单节点 serverless_basic）
 # 实例为 quanttide 体系共享（多应用共用一个实例，各自独立数据库）；qtcloud-pay 的应用库见下方 database 资源

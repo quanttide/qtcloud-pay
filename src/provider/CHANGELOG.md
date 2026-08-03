@@ -9,7 +9,7 @@
 
 ### Fixed
 - CI 部署链路：阿里云凭证 secret 改用 `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET`；镜像名改经 `GITHUB_ENV` 传递（job output 含 secret 会被 GitHub 脱敏置空）
-- 创建 RDS PostgreSQL 服务关联角色（`AliyunServiceRoleForRdsPgsql`），解决首次开通 `ServiceLinkedRole.NotExist`
+- 创建 RDS PostgreSQL 服务关联角色（`AliyunServiceRoleForRdsPgsqlOnEcs`，rds 产品 API），解决首次开通 `ServiceLinkedRole.NotExist`
 
 ## [0.1.0-alpha.1] - 2026-08-03
 

@@ -47,6 +47,24 @@ qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 
 ## 环境准备
 
+### 0. 创建 RDS PostgreSQL 服务关联角色（账号级一次性）
+
+首次开通 RDS PostgreSQL 前必须创建服务关联角色 `AliyunServiceRoleForRdsPgsqlOnEcs`,否则创建实例报 `ServiceLinkedRole.NotExist`:
+
+```sh
+# 安装 aliyun CLI（官方 CDN 直链，Linux AMD64）
+curl -fsSL -o /tmp/aliyun-cli.tgz https://aliyuncli.alicdn.com/aliyun-cli-linux-latest-amd64.tgz
+mkdir -p ~/.local/bin && tar xzf /tmp/aliyun-cli.tgz -C ~/.local/bin
+
+# 创建角色（rds 产品 API；已创建时重复执行会返回错误，可忽略）
+aliyun rds CreateServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole AliyunServiceRoleForRdsPgsqlOnEcs
+
+# 验证
+aliyun rds CheckServiceLinkedRole --RegionId cn-hangzhou --ServiceLinkedRole AliyunServiceRoleForRdsPgsqlOnEcs
+```
+
+> 踩坑记录：`alicloud_rds_service_linked_role` terraform 资源只接受 `AliyunServiceRoleForRdsPgsqlOnEcs` / `AliyunServiceRoleForRDSProxyOnEcs` 两个值，且角色已存在时行为不确定，因此不在 IaC 中管理，改为文档化的一次性前置。
+
 ### 1. 阿里云凭证（机器级配置）
 
 Terraform 通过 `~/.aliyun/config.json` 读取凭证(与 aliyun CLI 共用同一份配置):
