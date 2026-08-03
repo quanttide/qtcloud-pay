@@ -1,4 +1,4 @@
-# 私有网络：RDS 与 FC 通过 VPC 内网互通
+# 系统级共享网络：RDS 与 FC 通过 VPC 内网互通（quanttide 体系统一管理）
 data "alicloud_zones" "default" {
   available_resource_creation = "Rds"
 }

@@ -1,6 +1,6 @@
-# FC 默认角色：允许 FC 服务挂载弹性网卡访问 VPC
+# FC 默认角色：允许 FC 服务挂载弹性网卡访问 VPC（应用级）
 resource "alicloud_ram_role" "fc" {
-  role_name                   = "${local.name_prefix}-fc"
+  role_name                   = "${local.app_name_prefix}-fc"
   assume_role_policy_document = <<EOF
 {
   "Statement": [
@@ -24,9 +24,9 @@ resource "alicloud_ram_role_policy_attachment" "fc_vpc" {
   role_name   = alicloud_ram_role.fc.role_name
 }
 
-# 函数计算（FC 3.0）：custom-container 容器镜像，VPC 内网访问 RDS
+# 函数计算（FC 3.0）：custom-container 容器镜像，VPC 内网访问 RDS（应用级）
 resource "alicloud_fcv3_function" "this" {
-  function_name   = local.name_prefix
+  function_name   = local.app_name_prefix
   description     = "qtcloud-pay 账本核心 API"
   runtime         = "custom-container"
   handler         = "index.handler" # custom-container 必填占位，实际由容器监听端口决定

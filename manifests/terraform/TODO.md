@@ -20,4 +20,5 @@
 
 - [ ] **OIDC 联邦升级**:RAM 角色信任 GitHub OIDC,workflow 不再需要 Secret Key,CI 不落任何长期凭证
 - [ ] 权限收敛为最小策略集
-- [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`(系统层面预留,另行规划)
+- [ ] API 网关统一接入 `api.quanttide.com/qtcloud-pay`（系统层面预留，另行规划）
+- [ ] VPC/RDS 抽离到系统级 IaC（quanttide 体系统一管理，如 quanttide-infra），qtcloud-pay 仅保留 FC 与数据库

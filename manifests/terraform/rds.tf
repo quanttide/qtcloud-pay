@@ -1,4 +1,5 @@
-# RDS PostgreSQL Serverless（按量计费、自动暂停；单节点 serverless_basic）
+# 系统级共享 RDS PostgreSQL Serverless（按量计费、自动暂停；单节点 serverless_basic）
+# 实例为 quanttide 体系共享（多应用共用一个实例，各自独立数据库）；qtcloud-pay 的应用库见下方 database 资源
 resource "alicloud_db_instance" "this" {
   engine                   = "PostgreSQL"
   engine_version           = var.db_engine_version

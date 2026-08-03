@@ -13,9 +13,8 @@
 
 ## 本 IaC 范围
 
-- 网络：VPC / 交换机 / 安全组
-- 数据库：RDS PostgreSQL Serverless + 数据库/账号
-- 服务：函数计算（FC）custom-container，镜像监听 8080，环境变量注入 `DB_DRIVER` / `DATABASE_URL`
+- **系统级共享**（quanttide 体系统一管理，`quanttide-<env>` 命名）：VPC / 交换机 / 安全组、RDS 实例
+- **应用级**（`qtcloud-pay-<env>` 命名）：数据库与账号（`qtcloud_pay`）、FC 函数与默认角色
 - **不含** API 网关、域名、DNS（系统层面预留）
 
 ## 设计动机

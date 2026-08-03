@@ -4,9 +4,8 @@
 
 qtcloud-pay 的部署由 [Terraform](../../manifests/terraform/) 管理,覆盖:
 
-- 网络:VPC / 交换机 / 安全组
-- 数据库:RDS PostgreSQL Serverless(按量计费、自动暂停)
-- 服务:函数计算 FC 3.0(custom-container 容器镜像,监听 8080,VPC 内网访问 RDS)
+- **系统级共享**(quanttide 体系统一管理,`quanttide-<env>` 前缀):VPC / 交换机 / 安全组、RDS 实例
+- **应用级**(`qtcloud-pay-<env>` 前缀):数据库与账号(`qtcloud_pay`)、FC 函数与默认角色
 
 选型依据支付工程日志的部署决策,详见 [manifests/terraform/README.md](../../manifests/terraform/README.md)。**API 网关(`api.quanttide.com`)为系统层面预留,不在本 IaC 范围内。**
 
