@@ -6,8 +6,8 @@
 
 - [x] 配置阿里云凭证：本地 `~/.aliyun/config.json` + CI GitHub org secrets;RAM 用户授权 `PowerUserAccess` + `AliyunRAMFullAccess`
 - [x] state 迁移到 OSS 远端后端（`quanttide-terraform-state`，已创建）
-- [x] 镜像由 deploy-provider workflow 构建发布（双通道：Docker Hub + ACR `registry.cn-hangzhou.aliyuncs.com/quanttide/qtcloud-pay-provider`，`provider/*` tag 触发）
-- [ ] ACR 命名空间/仓库由 CI 幂等创建（见 docs/dev-guide/iac.md「0.5 ACR 命名空间与镜像仓库」），确认 FC 能从 ACR 拉镜像（registry not reachable 阻塞项）
+- [x] 镜像由 deploy-provider workflow 构建发布（双通道：Docker Hub + ACR 个人版实例，地址走 secret `ALIYUN_ACR_REGISTRY`，`provider/*` tag 触发）
+- [x] ACR 仓库由主账号一次性创建（PUBLIC，FC 免凭证直拉）；CI 不建仓（RAM 用户无 ACR 管理权限）
 - [ ] 复制 `terraform.tfvars.example` → `terraform.tfvars` 填写真实值，执行 `terraform apply`
 - [ ] 上线验证:通过 `terraform output fc_http_url` 访问账本 API(如健康检查/创建账户)确认全链路可用
 

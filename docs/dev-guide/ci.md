@@ -17,7 +17,7 @@ deploy-provider workflow 的架构、凭证体系、踩坑记录与维护清单�
 
 | secret | 用途 | 注入方式 |
 |--------|------|---------|
-| `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` | RAM 用户 AccessKey（terraform + aliyun CLI） | terraform：`ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY`；aliyun CLI：`ALICLOUD_ACCESS_KEY_ID` / `ALICLOUD_ACCESS_KEY_SECRET` |
+| `ALIYUN_ACCESS_KEY_ID` / `ALIYUN_ACCESS_KEY_SECRET` | RAM 用户 AccessKey（仅 terraform） | `ALICLOUD_ACCESS_KEY` / `ALICLOUD_SECRET_KEY` |
 | `ALIYUN_ACR_USERNAME` / `ALIYUN_ACR_PASSWORD` / `ALIYUN_ACR_REGISTRY` | ACR 个人版固定凭证（docker login） | `docker/login-action` 的 registry/username/password |
 | `DB_PASSWORD` | RDS 数据库密码 | `TF_VAR_db_password` |
 | `DOCKERHUB_USERNAME` / `DOCKERHUB_PASSWORD` | Docker Hub 凭证（双通道之一） | `docker/login-action` |
@@ -38,8 +38,8 @@ deploy-provider workflow 的架构、凭证体系、踩坑记录与维护清单�
 ## 镜像双通道发布
 
 - **为什么双通道**：FC 中国区拉不到 Docker Hub（`registry is not reachable`），部署镜像必须走同地域 ACR；Docker Hub 保留为对外分发通道
-- **部署镜像固定指向 ACR**：`registry.cn-hangzhou.aliyuncs.com/quanttide/qtcloud-pay-provider:<tag>`（deploy job 的 `TF_VAR_image`）
-- **ACR 命名空间/仓库幂等创建**：CI 构建前用 aliyun CLI 实例版 API 确保存在（PUBLIC，FC 免凭证直拉）；terraform provider 的个人版 CR 资源已弃用（v1.276.0 起），不入 IaC
+- **部署镜像固定指向 ACR**：`<secret ALIYUN_ACR_REGISTRY>/quanttide/qtcloud-pay-provider:<tag>`（deploy job 的 `TF_VAR_image`，实例地址只走 secret）
+- **ACR 仓库由主账号一次性创建**（PUBLIC，FC 免凭证直拉）；CI 不建仓——CI 的 RAM 用户无 ACR 管理权限，且 aliyun CLI 的 cr API 不稳定；terraform provider 的个人版 CR 资源已弃用（v1.276.0 起），不入 IaC
 - **tag 解析**：`${GITHUB_REF_NAME#provider/}` 去掉前缀得镜像 tag（`provider/v0.1.0-alpha.4` → `v0.1.0-alpha.4`）
 
 ## 踩坑记录
@@ -52,13 +52,13 @@ deploy-provider workflow 的架构、凭证体系、踩坑记录与维护清单�
 
 `aliyun/aliyun-cli-action@v1` 的 `access-key-id` / `access-key-secret` / `region-id` 输入**无效**（该 action 只认 `version`，CI annotation 可证实），凭证从未注入。**修复**：换 `aliyun/setup-aliyun-cli-action@v1`（仅装 CLI），凭证经 job env `ALICLOUD_ACCESS_KEY_ID` / `ALICLOUD_ACCESS_KEY_SECRET` / `ALICLOUD_REGION_ID` 注入。教训：第三方 action 的参数以 CI annotation / 实测为准，别信 README 印象。
 
-### 3. ACR API 是实例版（个人版也是）
+### 3. 不要在 CI 里建 ACR 仓库（Ensure 步骤已移除）
 
-当前 aliyun CLI（3.4.x）的 `cr` 产品为**实例版 API**：`CreateNamespace` / `CreateRepository` 必填 `--InstanceId`（个人版实例形如 `cri-xxx`），参数名是 `--NamespaceName` / `--RepoName`；老版参数（`--Namespace` / `--NamespaceStatus`）必报 `required parameters not assigned`。**流程**：`ListInstance --InstanceType acr_personal --RegionId cn-hangzhou` 取实例 ID → Get 查存在 → 不存在才创建。
+CI 的 RAM 用户**没有 ACR 管理权限**，且 aliyun CLI 的 cr API 不稳定（`version: latest` 下 `ListInstance --InstanceType acr_personal` 已报参数无效）。Ensure 步骤已从 workflow 移除：仓库由主账号一次性创建（PUBLIC），CI 只负责 docker login（ACR 固定凭证）推送。教训：**管理操作交给有权限的账号，CI 只做有凭证的操作**。
 
-### 4. 错误被吞导致"假成功"
+### 4. ACR 个人版实例是专属域名
 
-`cmd >/dev/null 2>&1 || echo "already exists"` 把真实失败（参数错误、凭证无效）伪装成幂等跳过，CI 显示 Ensure 步骤成功但仓库从未创建，直到 push 报 `insufficient_scope: authorization failed`。**修复**：`set -euo pipefail` + `GetNamespace`/`GetRepository` 查存在 + 创建失败即 fail。教训：**幂等创建要"查存在→不存在才建"，不要"建失败当已存在"**。
+老地址 `registry.cn-hangzhou.aliyuncs.com` 会被新实例拒绝（`Forbidden Host`），必须用控制台的 `crpi-*.personal.cr.aliyuncs.com`。实例地址属敏感信息，**只放 secret `ALIYUN_ACR_REGISTRY`，不写进代码/文档**。空仓库的 `tags/list` 返回 `NAME_UNKNOWN` 属正常行为（不代表仓库不存在），验证存在性用 `docker manifest inspect`（`no such manifest` = 存在、仅缺 tag）。
 
 ### 5. FC 拉不到 Docker Hub
 
@@ -102,7 +102,7 @@ tag 指向的 commit 决定 CI 用的代码——**先推修复再发 tag**；�
 - [ ] editor YAML 诊断通过（缩进错误会直接破坏 workflow）
 - [ ] 新增 secret：org Settings → Secrets → Actions，范围 Public repositories
 - [ ] 新变量名确认：terraform 用 `ALICLOUD_ACCESS_KEY/SECRET_KEY`，aliyun CLI 用 `ALICLOUD_ACCESS_KEY_ID/SECRET`
-- [ ] 幂等步骤遵守「Get 查存在 → 不存在才建 → 失败即 fail」
+- [ ] ACR 仓库存在性：主账号确认 `qtcloud-pay-provider` 为 PUBLIC；CI 不建仓（勿重新引入 Ensure 步骤）
 
 ### 凭证轮换
 
