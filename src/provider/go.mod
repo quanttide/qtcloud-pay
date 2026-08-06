@@ -4,7 +4,7 @@ go 1.26.4
 
 require (
 	github.com/go-pay/gopay v1.5.122
-	github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.0-00010101000000-000000000000
+	github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.1
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/driver/sqlite v1.6.0
 	gorm.io/gorm v1.31.2
@@ -28,5 +28,3 @@ require (
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.29.0 // indirect
 )
-
-replace github.com/quanttide/quanttide-pay-toolkit/packages/go => ../../../../packages/quanttide-pay-toolkit/packages/go
