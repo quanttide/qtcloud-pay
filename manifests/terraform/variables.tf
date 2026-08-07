@@ -50,3 +50,10 @@ variable "fc_timeout" {
   type        = number
   default     = 60
 }
+
+variable "admin_token" {
+  description = "运维删除端点保护令牌（X-Admin-Token）。由 CI 注入（TF_VAR_admin_token = secret ADMIN_TOKEN）；留空时端点返回 403（fail-closed）"
+  type        = string
+  sensitive   = true
+  default     = ""
+}

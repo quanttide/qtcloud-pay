@@ -103,6 +103,7 @@ jobs:
       ALICLOUD_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
       ALICLOUD_REGION_ID: cn-hangzhou
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
 
     steps:
       - name: Checkout
