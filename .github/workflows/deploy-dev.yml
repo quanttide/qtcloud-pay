@@ -122,7 +122,8 @@ jobs:
         working-directory: manifests/terraform
         run: |
           set -euo pipefail
-          INSTANCE_ID="$(aliyun oss cat oss://${TF_STATE_BUCKET}/env:/quanttide-platform/terraform.tfstate | jq -r '.outputs.rds_instance_id.value')"
+          aliyun oss cp -f oss://${TF_STATE_BUCKET}/env:/quanttide-platform/terraform.tfstate /tmp/platform.tfstate >/dev/null
+          INSTANCE_ID="$(jq -r '.outputs.rds_instance_id.value' /tmp/platform.tfstate)"
           echo "RDS instance: ${INSTANCE_ID}"
           STATUS() { aliyun rds DescribeDBInstances --RegionId "${TF_VAR_region}" | jq -r --arg id "${INSTANCE_ID}" '.Items.DBInstance[] | select(.DBInstanceId==$id) | .DBInstanceStatus'; }
           S="$(STATUS)"
