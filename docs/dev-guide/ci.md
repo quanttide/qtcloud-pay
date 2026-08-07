@@ -68,6 +68,18 @@ CI 的 RAM 用户**没有 ACR 管理权限**，且 aliyun CLI 的 cr API 不稳�
 
 当前最小化实现；生产环境建议改 FC 配置中心/密钥管理注入。
 
+### 7. Ensure RDS 步骤依赖 state 已有 platform 数据（dev 首次部署失败）
+
+原步骤 `terraform state pull | jq ... platform ...` 只在**当前环境 state 已存在**时能提取 RDS 实例 ID。dev 首次部署时 state 为空（`terraform_remote_state` 数据是 apply 时才写入）→ 提取失败。**修复**：直接从 OSS 读 platform 的远程 state（`aliyun oss cp oss://<bucket>/env:/quanttide-platform/terraform.tfstate`，注意 `env:/` 前缀）。教训：CI 步骤不能依赖"state 里已有数据"的隐式前提，首次部署与已存在部署必须同样可用。
+
+### 8. aliyun oss cat 输出不纯净，不可直接管道 jq
+
+`aliyun oss cat <object> | jq` 报 `parse error: Invalid numeric literal`——oss cat 输出混入进度/统计等非 JSON 内容。**修复**：`aliyun oss cp <object> <本地文件>` 落盘后再 jq。教训：aliyun CLI 输出不要假设纯 JSON，解析前先本地验证。
+
+### 9. aliyun CLI 的 oss cp 不兼容 -f 参数
+
+`aliyun oss cp -f <src> <dst>` 报 `invalid url ... multiple source url in download operation`（3.4.11 将 `-f` 误解析）。**修复**：去掉 `-f`（覆盖时直接 cp 即可）。教训：aliyun CLI 的 flag 用法与 ossutil 不同，CI 命令先在本机**同版本** CLI 验证语法（本地 10 秒 vs CI 迭代 5 分钟）。
+
 ## 调试方法
 
 ```sh
@@ -80,6 +92,7 @@ gh run view <run-id> --repo quanttide/qtcloud-pay
 # API（匿名可查 run/job 结论，日志下载需 admin）
 #   https://api.github.com/repos/quanttide/qtcloud-pay/actions/runs
 #   https://api.github.com/repos/quanttide/qtcloud-pay/actions/runs/<id>/jobs
+#   https://api.github.com/repos/quanttide/qtcloud-pay/actions/runs/<id>/logs  → 全量日志 zip（含每一步输出）
 ```
 
 经验：先看 `gh run view` 的 job 结论定位失败阶段（build / login / push / terraform），再 `--log-failed` 看具体错误；注意 CI annotation（黄色警告）往往提前暴露配置问题（如 action 参数无效）。
