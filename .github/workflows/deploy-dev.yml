@@ -1,0 +1,155 @@
+# 部署 dev 环境：main 分支 push 时自动部署（开发环境，允许频繁迭代）。
+#
+# 与生产（deploy-provider.yml）隔离的关键：
+#   - 独立 tfstate key（qtcloud-pay-dev/...），dev apply 不会接管 prod 资源
+#   - 独立数据库/账号（qtcloud_pay_dev），与 prod 数据物理隔离
+#   - 独立 DB_PASSWORD_DEV secret
+#   - 镜像 tag dev-<sha>，prod 镜像 tag 为版本号，互不覆盖
+#
+# 所需 GitHub secrets（org 级，沿用 prod）：
+#   - ALIYUN_ACCESS_KEY_ID / ALIYUN_ACCESS_KEY_SECRET / ALIYUN_ACR_USERNAME /
+#     ALIYUN_ACR_PASSWORD / ALIYUN_ACR_REGISTRY / DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD / ADMIN_TOKEN
+#   - DB_PASSWORD_DEV：dev 数据库账号密码（与 prod 的 DB_PASSWORD 不同值）
+
+name: Deploy Dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/provider/**'
+      - 'manifests/**'
+      - '.github/workflows/deploy-dev.yml'
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true # dev 环境：新提交取消旧部署，避免排队积压
+
+env:
+  TF_VAR_region: cn-hangzhou
+  TF_VAR_environment: dev
+  TF_VAR_db_name: qtcloud_pay_dev
+  TF_VAR_db_username: qtcloud_pay_dev
+  TF_STATE_BUCKET: quanttide-terraform-state
+  TF_STATE_KEY: qtcloud-pay-dev/terraform.tfstate
+  ACR_NAMESPACE: quanttide
+
+jobs:
+  build-image:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.image.outputs.tag }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Image Tag
+        id: image
+        run: echo "tag=dev-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ALIYUN_ACR_REGISTRY }}
+          username: ${{ secrets.ALIYUN_ACR_USERNAME }}
+          password: ${{ secrets.ALIYUN_ACR_PASSWORD }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: src/provider
+          push: true
+          provenance: false
+          sbom: false
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/qtcloud-pay-provider:${{ steps.image.outputs.tag }}
+            ${{ secrets.ALIYUN_ACR_REGISTRY }}/${{ env.ACR_NAMESPACE }}/qtcloud-pay-provider:${{ steps.image.outputs.tag }}
+
+  deploy:
+    name: Terraform Apply (dev)
+    runs-on: ubuntu-latest
+    needs: build-image
+    timeout-minutes: 40
+
+    env:
+      ALICLOUD_ACCESS_KEY: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      ALICLOUD_SECRET_KEY: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      ALICLOUD_ACCESS_KEY_ID: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
+      ALICLOUD_ACCESS_KEY_SECRET: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
+      ALICLOUD_REGION_ID: cn-hangzhou
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD_DEV }}
+      TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Image Name
+        run: echo "TF_VAR_image=${{ secrets.ALIYUN_ACR_REGISTRY }}/${ACR_NAMESPACE}/qtcloud-pay-provider:${{ needs.build-image.outputs.tag }}" >> "$GITHUB_ENV"
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.15.8'
+
+      - name: Terraform Init（OSS 远程状态）
+        working-directory: manifests/terraform
+        run: |
+          terraform init -input=false \
+            -backend-config="bucket=${{ env.TF_STATE_BUCKET }}" \
+            -backend-config="key=${{ env.TF_STATE_KEY }}" \
+            -backend-config="region=${{ env.TF_VAR_region }}"
+
+      - name: Configure aliyun CLI
+        uses: aliyun/setup-aliyun-cli-action@v1
+        with:
+          version: '3.4.11'
+
+      - name: Ensure RDS Instance Running
+        working-directory: manifests/terraform
+        run: |
+          set -euo pipefail
+          INSTANCE_ID="$(terraform state pull | jq -r '.resources[] | select(.type=="terraform_remote_state" and .name=="platform") | .instances[0].attributes.outputs.value.rds_instance_id')"
+          echo "RDS instance: ${INSTANCE_ID}"
+          STATUS() { aliyun rds DescribeDBInstances --RegionId "${TF_VAR_region}" | jq -r --arg id "${INSTANCE_ID}" '.Items.DBInstance[] | select(.DBInstanceId==$id) | .DBInstanceStatus'; }
+          S="$(STATUS)"
+          if [ "${S}" != "Running" ]; then
+            echo "实例状态 ${S}，启动中..."
+            aliyun rds StartDBInstance --RegionId "${TF_VAR_region}" --DBInstanceId "${INSTANCE_ID}"
+            for i in $(seq 1 12); do
+              sleep 15
+              S="$(STATUS)"
+              echo "轮询 ${i}: ${S}"
+              [ "${S}" = "Running" ] && break
+            done
+            if [ "${S}" != "Running" ]; then
+              echo "::error::RDS 实例未能在 3 分钟内启动"
+              exit 1
+            fi
+          else
+            echo "实例已 Running"
+          fi
+
+      - name: Terraform Validate
+        working-directory: manifests/terraform
+        run: terraform validate -no-color
+
+      - name: Terraform Plan
+        working-directory: manifests/terraform
+        run: terraform plan -input=false -no-color -out=tfplan
+
+      - name: Terraform Apply
+        working-directory: manifests/terraform
+        run: terraform apply -input=false -no-color tfplan
