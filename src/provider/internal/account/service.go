@@ -69,6 +69,26 @@ func (s *Service) List(ctx context.Context) ([]Account, error) {
 	return s.repo.List(s.db)
 }
 
+// Delete 删除账户及全部关联数据（流水/订单/券）。运维用：清空测试数据。
+// 事务内先删子表后删账户；账户不存在返回 ErrNotFound。
+// 表名为内部常量（避免跨模块 import 环），不带用户输入。
+func (s *Service) Delete(ctx context.Context, id string) error {
+	err := s.db.Transaction(func(tx *gorm.DB) error {
+		if _, err := s.repo.Get(tx, id); errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrNotFound
+		} else if err != nil {
+			return err
+		}
+		for _, table := range []string{"transactions", "orders", "vouchers", "coupons"} {
+			if err := tx.Exec("DELETE FROM "+table+" WHERE account_id = ?", id).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Delete(&Account{}, "id = ?", id).Error
+	})
+	return err
+}
+
 // ListTransactions 查询账户流水（委托交易账本模块）。
 func (s *Service) ListTransactions(ctx context.Context, accountID string, limit, offset int) ([]transaction.Transaction, error) {
 	return s.txSvc.List(ctx, s.db, accountID, limit, offset)

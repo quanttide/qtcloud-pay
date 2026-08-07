@@ -79,6 +79,7 @@ def server_url(tmp_path_factory: pytest.TempPathFactory) -> str:
     env = os.environ.copy()
     env["DB_DRIVER"] = "sqlite"
     env["DB_SQLITE_DSN"] = str(tmp / "test.db")
+    env["ADMIN_TOKEN"] = "test-admin-token"
 
     proc = subprocess.Popen(
         [str(binary), "-addr", f"{SERVER_ADDR}:{port}"],

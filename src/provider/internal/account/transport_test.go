@@ -16,7 +16,7 @@ import (
 func newTestServer(t *testing.T) (*httptest.Server, *account.Service) {
 	t.Helper()
 	svc, _ := newService(t)
-	h := account.NewHandler(svc)
+	h := account.NewHandler(svc, "test-token")
 	mux := http.NewServeMux()
 	h.Register(mux)
 	ts := httptest.NewServer(mux)
@@ -216,7 +216,7 @@ func TestTransport_Get(t *testing.T) {
 func TestTransport_Transactions_ServiceError(t *testing.T) {
 	svc, db := newService(t)
 	closeDB(t, db)
-	h := account.NewHandler(svc)
+	h := account.NewHandler(svc, "test-token")
 	mux := http.NewServeMux()
 	h.Register(mux)
 	ts := httptest.NewServer(mux)
@@ -300,5 +300,69 @@ func TestTransport_Transactions(t *testing.T) {
 	defer resp3.Body.Close()
 	if resp3.StatusCode != http.StatusBadRequest {
 		t.Errorf("empty id status = %d, want 400", resp3.StatusCode)
+	}
+}
+
+func TestTransport_AdminDelete(t *testing.T) {
+	ts, svc := newTestServer(t)
+	ctx := context.Background()
+
+	// 建户 + 充值 + 扣费（产生流水）
+	resp := postJSON(t, ts.URL+"/accounts", map[string]any{"customer_id": "cust_del"})
+	var acc struct {
+		ID string `json:"id"`
+	}
+	json.NewDecoder(resp.Body).Decode(&acc)
+	resp.Body.Close()
+
+	postJSON(t, ts.URL+"/accounts/"+acc.ID+"/recharges",
+		map[string]any{"amount": map[string]any{"amount": 5000, "currency": "CNY"}, "voucher_no": "V-DEL-1"})
+	postJSON(t, ts.URL+"/orders",
+		map[string]any{"order_id": "O-DEL-1", "account_id": acc.ID, "scope": "course",
+			"amount": map[string]any{"amount": 2000, "currency": "CNY"}})
+
+	// 无 token → 403
+	req, _ := http.NewRequest("DELETE", ts.URL+"/admin/accounts/"+acc.ID, nil)
+	resp2, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusForbidden {
+		t.Errorf("no token status = %d, want 403", resp2.StatusCode)
+	}
+
+	// 错误 token → 403
+	req2, _ := http.NewRequest("DELETE", ts.URL+"/admin/accounts/"+acc.ID, nil)
+	req2.Header.Set("X-Admin-Token", "wrong")
+	resp3, _ := http.DefaultClient.Do(req2)
+	resp3.Body.Close()
+	if resp3.StatusCode != http.StatusForbidden {
+		t.Errorf("bad token status = %d, want 403", resp3.StatusCode)
+	}
+
+	// 正确 token → 204，账户及关联数据全部清空
+	req3, _ := http.NewRequest("DELETE", ts.URL+"/admin/accounts/"+acc.ID, nil)
+	req3.Header.Set("X-Admin-Token", "test-token")
+	resp4, err := http.DefaultClient.Do(req3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp4.Body.Close()
+	if resp4.StatusCode != http.StatusNoContent {
+		t.Errorf("delete status = %d, want 204", resp4.StatusCode)
+	}
+
+	if _, err := svc.Get(ctx, acc.ID); err != account.ErrNotFound {
+		t.Errorf("account should be gone, got err=%v", err)
+	}
+
+	// 不存在账户 → 404
+	req5, _ := http.NewRequest("DELETE", ts.URL+"/admin/accounts/"+acc.ID, nil)
+	req5.Header.Set("X-Admin-Token", "test-token")
+	resp5, _ := http.DefaultClient.Do(req5)
+	resp5.Body.Close()
+	if resp5.StatusCode != http.StatusNotFound {
+		t.Errorf("missing delete status = %d, want 404", resp5.StatusCode)
 	}
 }

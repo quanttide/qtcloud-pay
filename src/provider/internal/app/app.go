@@ -75,7 +75,8 @@ func OpenDB() (*gorm.DB, error) {
 }
 
 // BuildMux 组装全部模块并返回路由；channelName 非空时挂载支付渠道。
-func BuildMux(db *gorm.DB, channelName string) (*http.ServeMux, error) {
+// adminToken 非空时启用 DELETE /admin/accounts/{id} 运维删除（生产注入，dev 可选）。
+func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, error) {
 	// 账本核心
 	txSvc := transaction.NewService(transactiongorm.NewTransactionRepo())
 	accSvc := account.NewService(db, accountgorm.NewAccountRepo(), txSvc)
@@ -86,7 +87,7 @@ func BuildMux(db *gorm.DB, channelName string) (*http.ServeMux, error) {
 	reconSvc := reconciliation.NewService(db, accSvc, txSvc)
 
 	mux := http.NewServeMux()
-	account.NewHandler(accSvc).Register(mux)
+	account.NewHandler(accSvc, adminToken).Register(mux)
 	coupon.NewHandler(couponSvc).Register(mux)
 	voucher.NewHandler(voucherSvc).Register(mux)
 	order.NewHandler(orderSvc).Register(mux)

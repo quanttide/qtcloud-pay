@@ -11,8 +11,11 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
 	accountgorm "github.com/quanttide/qtcloud-pay/src/provider/internal/account/gorm"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/order"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	transactiongorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transaction/gorm"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
 
 func setupDB(t *testing.T) *gorm.DB {
@@ -26,7 +29,10 @@ func setupDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&account.Account{}, &transaction.Transaction{}); err != nil {
+	if err := db.AutoMigrate(
+		&account.Account{}, &transaction.Transaction{},
+		&order.Order{}, &voucher.Voucher{}, &coupon.Coupon{},
+	); err != nil {
 		t.Fatal(err)
 	}
 	return db

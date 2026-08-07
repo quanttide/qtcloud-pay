@@ -72,7 +72,7 @@ func TestBuildMux_LedgerRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mux, err := BuildMux(db, "")
+	mux, err := BuildMux(db, "", "")
 	if err != nil {
 		t.Fatalf("BuildMux: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestBuildMux_AlipayChannel(t *testing.T) {
 	t.Setenv("ALIPAY_APP_ID", "2021000000000001")
 	t.Setenv("ALIPAY_PRIVATE_KEY", generateTestKeyPEM(t))
 
-	mux, err := BuildMux(db, "alipay")
+	mux, err := BuildMux(db, "alipay", "")
 	if err != nil {
 		t.Fatalf("BuildMux: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestBuildMux_BadChannel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := BuildMux(db, "unionpay"); err == nil {
+	if _, err := BuildMux(db, "unionpay", ""); err == nil {
 		t.Fatal("expected error for unsupported channel")
 	}
 }

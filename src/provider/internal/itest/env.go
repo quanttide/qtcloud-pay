@@ -41,7 +41,7 @@ func newEnv(t *testing.T) *env {
 		t.Fatal(err)
 	}
 	sqlDB.SetMaxOpenConns(1) // :memory: 单连接保证数据一致
-	mux, err := app.BuildMux(db, "")
+	mux, err := app.BuildMux(db, "", "")
 	if err != nil {
 		t.Fatalf("build mux: %v", err)
 	}

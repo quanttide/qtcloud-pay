@@ -15,12 +15,13 @@ import (
 
 // Handler 账户 API。
 type Handler struct {
-	svc *Service
+	svc        *Service
+	adminToken string // 非空时 DELETE /admin/accounts/{id} 需 X-Admin-Token 匹配
 }
 
 // NewHandler 创建账户 API。
-func NewHandler(svc *Service) *Handler {
-	return &Handler{svc: svc}
+func NewHandler(svc *Service, adminToken string) *Handler {
+	return &Handler{svc: svc, adminToken: adminToken}
 }
 
 // Register 注册账户路由。
@@ -30,6 +31,25 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /accounts/{id}/refunds", h.handleRefund)
 	mux.HandleFunc("GET /accounts/{id}", h.handleGet)
 	mux.HandleFunc("GET /accounts/{id}/transactions", h.handleTransactions)
+	mux.HandleFunc("DELETE /admin/accounts/{id}", h.handleAdminDelete)
+}
+
+// handleAdminDelete 运维删除：清空指定账户全链路数据（测试数据清理）。
+// fail-closed：未配置 ADMIN_TOKEN 或请求头不匹配一律 403。
+func (h *Handler) handleAdminDelete(w http.ResponseWriter, r *http.Request) {
+	if h.adminToken == "" || r.Header.Get("X-Admin-Token") != h.adminToken {
+		httpapi.WriteError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+	if err := h.svc.Delete(r.Context(), r.PathValue("id")); err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpapi.WriteError(w, http.StatusNotFound, "account not found")
+			return
+		}
+		httpapi.WriteError(w, http.StatusInternalServerError, "delete failed")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // accountDTO 账户响应（金额以元传输）。

@@ -36,7 +36,7 @@ func run(ctx context.Context, addr, channelName string) error {
 	if err != nil {
 		return err
 	}
-	mux, err := app.BuildMux(db, channelName)
+	mux, err := app.BuildMux(db, channelName, os.Getenv("ADMIN_TOKEN"))
 	if err != nil {
 		return err
 	}

@@ -41,9 +41,11 @@ class ApiClient:
 
     # --- 传输层 ---
 
-    def request(self, method: str, path: str, body: Any = None) -> tuple[int, Any]:
+    def request(
+        self, method: str, path: str, body: Any = None, headers: dict[str, str] | None = None
+    ) -> tuple[int, Any]:
         data = None
-        headers = {}
+        headers = dict(headers or {})
         if body is not None:
             data = json.dumps(body).encode("utf-8")
             headers["Content-Type"] = "application/json"
