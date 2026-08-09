@@ -9,7 +9,7 @@
 # 所需 GitHub secrets（org 级，沿用 prod）：
 #   - ALIYUN_ACCESS_KEY_ID / ALIYUN_ACCESS_KEY_SECRET / ALIYUN_ACR_USERNAME /
 #     ALIYUN_ACR_PASSWORD / ALIYUN_ACR_REGISTRY / DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD / ADMIN_TOKEN
-#   - DB_PASSWORD_DEV：dev 数据库账号密码（与 prod 的 DB_PASSWORD 不同值）
+#   - DB_PASSWORD_DEV：dev 数据库账号密码（与 prod 的 DB_PASSWORD 不同值）；ADMIN_TOKEN 粘贴勿带换行
 
 name: Deploy Dev
 
