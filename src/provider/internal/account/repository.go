@@ -8,6 +8,8 @@ type Repository interface {
 	Create(db *gorm.DB, a *Account) error
 	// Get 查询账户；不存在返回 gorm.ErrRecordNotFound。
 	Get(db *gorm.DB, id string) (*Account, error)
+	// GetByCustomer 按客户标识查询账户（账号中心前台用）。
+	GetByCustomer(db *gorm.DB, customerID string) (*Account, error)
 	// GetForUpdate 锁定账户行并查询（同账户并发写串行化）。
 	GetForUpdate(db *gorm.DB, id string) (*Account, error)
 	Update(db *gorm.DB, a *Account) error

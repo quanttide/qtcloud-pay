@@ -27,6 +27,14 @@ func (r *AccountRepo) Get(db *gorm.DB, id string) (*account.Account, error) {
 	return &a, nil
 }
 
+func (r *AccountRepo) GetByCustomer(db *gorm.DB, customerID string) (*account.Account, error) {
+	var a account.Account
+	if err := db.Where("customer_id = ?", customerID).First(&a).Error; err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
 func (r *AccountRepo) GetForUpdate(db *gorm.DB, id string) (*account.Account, error) {
 	var a account.Account
 	err := db.Clauses(clause.Locking{Strength: "UPDATE"}).

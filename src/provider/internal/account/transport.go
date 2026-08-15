@@ -30,6 +30,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /accounts/{id}/recharges", h.handleRecharge)
 	mux.HandleFunc("POST /accounts/{id}/refunds", h.handleRefund)
 	mux.HandleFunc("GET /accounts/{id}", h.handleGet)
+	mux.HandleFunc("GET /customers/{customer_id}/account", h.handleGetByCustomer)
 	mux.HandleFunc("GET /accounts/{id}/transactions", h.handleTransactions)
 	mux.HandleFunc("DELETE /admin/accounts/{id}", h.handleAdminDelete)
 }
@@ -66,6 +67,20 @@ func toAccountDTO(a *Account) accountDTO {
 		ID: a.ID, CustomerID: a.CustomerID, Balance: money.New(a.Balance, money.CNY),
 		CreatedAt: a.CreatedAt, UpdatedAt: a.UpdatedAt,
 	}
+}
+
+// handleGetByCustomer 按客户标识查询账户（账号中心前台）。
+func (h *Handler) handleGetByCustomer(w http.ResponseWriter, r *http.Request) {
+	acc, err := h.svc.GetByCustomer(r.Context(), r.PathValue("customer_id"))
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpapi.WriteError(w, http.StatusNotFound, "account not found")
+			return
+		}
+		httpapi.WriteError(w, http.StatusInternalServerError, "get failed")
+		return
+	}
+	httpapi.WriteJSON(w, http.StatusOK, toAccountDTO(acc))
 }
 
 // txDTO 交易流水响应（金额以元传输）。
