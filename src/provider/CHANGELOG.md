@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- 新增实训基地代金券计价规则集 `voucher.PricingRuleSet`：支持通过管理 API 幂等录入/查询/更新发行渠道、核销定价和 `billing_semantics`，保留一对一咨询职级档位与超额申请流程配额维度。
+
+### Changed
+- `app.Open` AutoMigrate 增加规则集表；`voucher` 管理 API 使用现有 `ADMIN_TOKEN` / `X-Admin-Token` fail-closed 保护，不改变发券与订单结算既有行为。
+
 ## [0.1.0-alpha.5] - 2026-08-03
 
 ### Fixed

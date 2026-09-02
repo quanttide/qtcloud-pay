@@ -2,6 +2,7 @@ package voucher
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -16,6 +17,12 @@ var (
 	ErrUnavailable = errors.New("voucher: unavailable")
 	// ErrInvalidIssue 发放请求不合法。
 	ErrInvalidIssue = errors.New("voucher: invalid issue request")
+	// ErrInvalidRuleSet 规则集请求不合法。
+	ErrInvalidRuleSet = errors.New("voucher: invalid pricing rule set")
+	// ErrRuleSetNotFound 规则集不存在。
+	ErrRuleSetNotFound = errors.New("voucher: pricing rule set not found")
+	// ErrRuleSetRepoUnavailable 规则集存储未装配。
+	ErrRuleSetRepoUnavailable = errors.New("voucher: pricing rule set repository unavailable")
 )
 
 // maxBatchCount 单次发放数量上限。
@@ -35,14 +42,19 @@ type IssueRequest struct {
 
 // Service 代金券服务。
 type Service struct {
-	db    *gorm.DB
-	repo  Repository
-	txSvc *transaction.Service
+	db       *gorm.DB
+	repo     Repository
+	ruleRepo PricingRuleSetRepository
+	txSvc    *transaction.Service
 }
 
 // NewService 创建代金券服务。
 func NewService(db *gorm.DB, repo Repository, txSvc *transaction.Service) *Service {
-	return &Service{db: db, repo: repo, txSvc: txSvc}
+	svc := &Service{db: db, repo: repo, txSvc: txSvc}
+	if ruleRepo, ok := repo.(PricingRuleSetRepository); ok {
+		svc.ruleRepo = ruleRepo
+	}
+	return svc
 }
 
 // Issue 批量发放代金券（幂等：同一批次号只发一次）。
@@ -101,6 +113,40 @@ func (s *Service) List(ctx context.Context, accountID string) ([]Voucher, error)
 		s.expireIfNeeded(&list[i])
 	}
 	return list, nil
+}
+
+// UpsertPricingRuleSet 幂等录入或更新代金券计价规则集。
+func (s *Service) UpsertPricingRuleSet(ctx context.Context, ruleSet *PricingRuleSet) (*PricingRuleSet, error) {
+	if s.ruleRepo == nil {
+		return nil, ErrRuleSetRepoUnavailable
+	}
+	if err := validatePricingRuleSet(ruleSet); err != nil {
+		return nil, err
+	}
+	if err := s.ruleRepo.UpsertRuleSet(s.db.WithContext(ctx), ruleSet); err != nil {
+		return nil, err
+	}
+	return s.ruleRepo.GetRuleSet(s.db.WithContext(ctx), ruleSet.ID)
+}
+
+// GetPricingRuleSet 查询代金券计价规则集。
+func (s *Service) GetPricingRuleSet(ctx context.Context, id string) (*PricingRuleSet, error) {
+	if s.ruleRepo == nil {
+		return nil, ErrRuleSetRepoUnavailable
+	}
+	ruleSet, err := s.ruleRepo.GetRuleSet(s.db.WithContext(ctx), id)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrRuleSetNotFound
+	}
+	return ruleSet, err
+}
+
+// ListPricingRuleSets 查询全部代金券计价规则集。
+func (s *Service) ListPricingRuleSets(ctx context.Context) ([]PricingRuleSet, error) {
+	if s.ruleRepo == nil {
+		return nil, ErrRuleSetRepoUnavailable
+	}
+	return s.ruleRepo.ListRuleSets(s.db.WithContext(ctx))
 }
 
 // Available 返回账户当前可用的代金券（已发放、未过期、适用范围匹配），供结算计算使用。
@@ -165,6 +211,99 @@ func validateIssue(req *IssueRequest) error {
 		}
 	default:
 		return ErrInvalidIssue
+	}
+	return nil
+}
+
+type pricingPayload struct {
+	Meta struct {
+		Source    string `json:"source"`
+		UpdatedAt string `json:"updated_at"`
+	} `json:"meta"`
+	Issuance struct {
+		Channels []struct {
+			Name    string `json:"name"`
+			Trigger string `json:"trigger"`
+			Voucher struct {
+				AmountCents   int64  `json:"amount_cents"`
+				Scope         string `json:"scope"`
+				ExpiresAtRule string `json:"expires_at_rule"`
+			} `json:"voucher"`
+			CountPerEvent int    `json:"count_per_event"`
+			Entry         string `json:"entry"`
+		} `json:"channels"`
+	} `json:"issuance"`
+	Redemption struct {
+		Scenarios []struct {
+			Scenario        string `json:"scenario"`
+			Name            string `json:"name"`
+			PricingModel    string `json:"pricing_model"`
+			RankPricesCents []struct {
+				Rank       string `json:"rank"`
+				PriceCents int64  `json:"price_cents"`
+			} `json:"rank_prices_cents"`
+			Quotas []struct {
+				ApplicationType  string `json:"application_type"`
+				Name             string `json:"name"`
+				FreeLimit        int    `json:"free_limit"`
+				ExceedPriceCents int64  `json:"exceed_price_cents"`
+			} `json:"quotas"`
+		} `json:"scenarios"`
+	} `json:"redemption"`
+	BillingSemantics struct {
+		VoucherIsMoney bool     `json:"voucher_is_money"`
+		OpenQuestions  []string `json:"open_questions"`
+	} `json:"billing_semantics"`
+}
+
+// validatePricingRuleSet 校验支付工程档案中的计价事实，保证金额单位为分且 scope 可被现有代金券模型承载。
+func validatePricingRuleSet(ruleSet *PricingRuleSet) error {
+	if ruleSet == nil || ruleSet.ID == "" || ruleSet.Payload == "" {
+		return ErrInvalidRuleSet
+	}
+	var payload pricingPayload
+	if err := json.Unmarshal([]byte(ruleSet.Payload), &payload); err != nil {
+		return ErrInvalidRuleSet
+	}
+	if len(payload.Issuance.Channels) == 0 || len(payload.Redemption.Scenarios) == 0 || !payload.BillingSemantics.VoucherIsMoney {
+		return ErrInvalidRuleSet
+	}
+	for _, ch := range payload.Issuance.Channels {
+		if ch.Name == "" || ch.Trigger == "" || ch.Voucher.AmountCents <= 0 || ch.CountPerEvent <= 0 || ch.Voucher.ExpiresAtRule == "" {
+			return ErrInvalidRuleSet
+		}
+		switch ch.Voucher.Scope {
+		case ScopeAll, ScopeCloud, ScopeCourse, ScopeData, ScopeProduct:
+		default:
+			return ErrInvalidRuleSet
+		}
+	}
+	for _, scenario := range payload.Redemption.Scenarios {
+		if scenario.Scenario == "" || scenario.Name == "" || scenario.PricingModel == "" {
+			return ErrInvalidRuleSet
+		}
+		switch scenario.PricingModel {
+		case "per_hour_by_rank":
+			if len(scenario.RankPricesCents) == 0 {
+				return ErrInvalidRuleSet
+			}
+			for _, price := range scenario.RankPricesCents {
+				if price.Rank == "" || price.PriceCents <= 0 {
+					return ErrInvalidRuleSet
+				}
+			}
+		case "per_count_flat":
+			if len(scenario.Quotas) == 0 {
+				return ErrInvalidRuleSet
+			}
+			for _, quota := range scenario.Quotas {
+				if quota.ApplicationType == "" || quota.Name == "" || quota.FreeLimit < 0 || quota.ExceedPriceCents <= 0 {
+					return ErrInvalidRuleSet
+				}
+			}
+		default:
+			return ErrInvalidRuleSet
+		}
 	}
 	return nil
 }

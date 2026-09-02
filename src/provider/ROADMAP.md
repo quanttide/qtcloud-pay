@@ -37,3 +37,9 @@ P2 小项（随迭代清理）：`channel.Server` 死代码（NewServer/Start/Cl
 
 - **层边界仲裁**：满减力度选择、代金券不找零归商务云策略还是支付云执行语义——决定 T3 是「配置化」还是「保持硬编码、接口透传」
 - **方案契约范围**：商品目录与适用范围的关系（scope 归商品目录还是独立维度）——决定 T1 的模型设计
+
+## 2026-09-02 加急补充：实训基地代金券计价事实
+
+- 已新增 `voucher.PricingRuleSet` 规则集快照与 `/admin/voucher-pricing-rules` 管理 API，用于录入 qtclass 支付工程档案中的发行渠道、核销定价和开放问题。
+- 管理 API 按现有 `ADMIN_TOKEN` + `X-Admin-Token` fail-closed 保护；F1 全账本 API 鉴权仍是生产阻塞遗留项。
+- `BillingRule` 仍只表达抵扣顺序；一对一咨询“服务者职级档位”和超额申请“流程配额”先保存在规则集 payload，后续若进入自动计费需扩展规则引擎行模型。

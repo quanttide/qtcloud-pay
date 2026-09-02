@@ -23,7 +23,7 @@
 | 账户与余额 | `internal/account` | 账户（客户虚拟钱包）、余额；充值登记、余额查询 | M1 |
 | 交易账本 | `internal/transaction` | 不可变交易记录（充值/消费/发券/核销）；**账本写入唯一入口** | M1 |
 | 优惠券 | `internal/coupon` | 折扣券/满减券；发放、过期流转、结算时核销 | M2 |
-| 代金券 | `internal/voucher` | 面值抵现券；发放、过期流转、结算时抵现 | M2 |
+| 代金券 | `internal/voucher` | 面值抵现券；发放、过期流转、结算时抵现；计价规则集快照管理 | M2 |
 | 订单与结算 | `internal/order` | 订单生命周期；结算入口（单事务协调） | M3 |
 | 计费规则 | `internal/billing` | 抵扣顺序配置与抵扣计算（纯计算，无存储依赖） | M3 |
 | 对账与可查 | `internal/reconciliation` | 一致性校验、对公打款核对、账单导出 | M4 |

@@ -26,7 +26,7 @@ func setupDB(t *testing.T) *gorm.DB {
 		t.Fatal(err)
 	}
 	sqlDB.SetMaxOpenConns(1)
-	if err := db.AutoMigrate(&voucher.Voucher{}, &transaction.Transaction{}); err != nil {
+	if err := db.AutoMigrate(&voucher.Voucher{}, &voucher.PricingRuleSet{}, &transaction.Transaction{}); err != nil {
 		t.Fatal(err)
 	}
 	return db

@@ -30,6 +30,7 @@ default: // sqlite（开发默认）
 db.AutoMigrate(
     &account.Account{}, &transaction.Transaction{},
     &coupon.Coupon{}, &voucher.Voucher{},
+    &voucher.PricingRuleSet{},
     &order.Order{}, &billing.BillingRule{},
 )
 ```

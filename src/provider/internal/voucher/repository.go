@@ -13,3 +13,10 @@ type Repository interface {
 	ListByAccount(db *gorm.DB, accountID string) ([]Voucher, error)
 	CountByBatch(db *gorm.DB, batchNo string) (int64, error)
 }
+
+// PricingRuleSetRepository 代金券计价规则集存储接口。
+type PricingRuleSetRepository interface {
+	UpsertRuleSet(db *gorm.DB, ruleSet *PricingRuleSet) error
+	GetRuleSet(db *gorm.DB, id string) (*PricingRuleSet, error)
+	ListRuleSets(db *gorm.DB) ([]PricingRuleSet, error)
+}

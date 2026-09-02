@@ -2,6 +2,7 @@ package gorm
 
 import (
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
@@ -56,4 +57,28 @@ func (r *VoucherRepo) CountByBatch(db *gorm.DB, batchNo string) (int64, error) {
 	return n, err
 }
 
+func (r *VoucherRepo) UpsertRuleSet(db *gorm.DB, ruleSet *voucher.PricingRuleSet) error {
+	return db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "id"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"source", "version", "payload", "updated_at",
+		}),
+	}).Create(ruleSet).Error
+}
+
+func (r *VoucherRepo) GetRuleSet(db *gorm.DB, id string) (*voucher.PricingRuleSet, error) {
+	var ruleSet voucher.PricingRuleSet
+	if err := db.Where("id = ?", id).First(&ruleSet).Error; err != nil {
+		return nil, err
+	}
+	return &ruleSet, nil
+}
+
+func (r *VoucherRepo) ListRuleSets(db *gorm.DB) ([]voucher.PricingRuleSet, error) {
+	var list []voucher.PricingRuleSet
+	err := db.Order("id ASC").Find(&list).Error
+	return list, err
+}
+
 var _ voucher.Repository = (*VoucherRepo)(nil)
+var _ voucher.PricingRuleSetRepository = (*VoucherRepo)(nil)

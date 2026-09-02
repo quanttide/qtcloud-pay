@@ -1,0 +1,100 @@
+{
+  "meta": {
+    "description": "量潮课堂（qtclass）代金券计价事实——qtcloud-pay 发放/核销参数与计费规则的系统录入数据",
+    "source": "journal qtclass/2026-09-01.md（支持云咨询场景 + 21:34 限额规则）",
+    "model_version": "qtcloud-pay voucher M2（internal/voucher/model.go）",
+    "updated_at": "2026-09-01"
+  },
+  "issuance": {
+    "description": "代金券发行渠道——每个渠道是发放事件（type=issue），发放参数按 qtcloud-pay 发放 API",
+    "channels": [
+      {
+        "name": "课堂实训任务",
+        "trigger": "实训任务验收通过",
+        "voucher": {
+          "amount_cents": 10000,
+          "amount_display": "100 元",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "count_per_event": 1,
+        "entry": "class.quanttide.com/learn"
+      },
+      {
+        "name": "众包任务",
+        "trigger": "众包任务交付验收",
+        "voucher": {
+          "amount_cents": 100000,
+          "amount_display": "1000 元（基准价，按任务定价浮动）",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "count_per_event": 1,
+        "entry": "crowd.quanttide.com"
+      },
+      {
+        "name": "实训基地代表履职（课题立项/结项初审）",
+        "trigger": "完成一次初审",
+        "voucher": {
+          "amount_cents": 10000,
+          "amount_display": "100 元",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "count_per_event": 1,
+        "entry": "任命公告 2026-09-01"
+      },
+      {
+        "name": "课题通过初审奖励",
+        "trigger": "课题初审通过",
+        "voucher": {
+          "amount_cents": 50000,
+          "amount_display": "500 元",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "count_per_event": 1,
+        "entry": "课题评审流程"
+      }
+    ]
+  },
+  "redemption": {
+    "description": "代金券核销场景——每场景是核销事件（voucher.status=used，关联订单）",
+    "scenarios": [
+      {
+        "scenario": "one_on_one_consultation",
+        "name": "一对一咨询预约",
+        "pricing_model": "per_hour_by_rank",
+        "rank_prices_cents": [
+          {"rank": "chief", "price_cents": 50000},
+          {"rank": "senior", "price_cents": 40000},
+          {"rank": "advanced", "price_cents": 30000},
+          {"rank": "intermediate", "price_cents": 20000},
+          {"rank": "junior", "price_cents": 10000}
+        ],
+        "note": "价格锚点是服务者职级档位（非商品）：BillingRule/行模型需新增服务者档位维度；群内沟通免费不消耗券——是否计费由渠道/方式决定",
+        "free_alternative": "群内提问"
+      },
+      {
+        "scenario": "extra_application_quota",
+        "name": "超额申请额度（考核限额）",
+        "pricing_model": "per_count_flat",
+        "quotas": [
+          {"application_type": "project_proposal", "name": "立项申请", "free_limit": 1, "exceed_price_cents": 10000},
+          {"application_type": "delivery_review", "name": "交付申请", "free_limit": 3, "exceed_price_cents": 10000}
+        ],
+        "note": "核销标的是流程配额（非商品）；按次计费，核销记录带申请类型与次序；待验证：超额购买能否用余额支付（当前规则只说代金券）"
+      }
+    ]
+  },
+  "billing_semantics": {
+    "voucher_is_money": true,
+    "consumption_sides": "挣券（劳动→发行）→ 持券（余额性质资产）→ 消费（专家时间/申请额度）",
+    "open_questions": [
+      "代金券与余额的核销顺序（model.md 遗留）",
+      "超额购买能否用余额支付（当前规则只说代金券）",
+      "职级调价后历史预付结算口径"
+    ]
+  }
+}
+

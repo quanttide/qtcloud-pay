@@ -33,6 +33,17 @@ type Voucher struct {
 	CreatedAt time.Time  `json:"created_at"`
 }
 
+// PricingRuleSet 代金券计价规则集快照。
+// 用于录入外部事实档案（发行渠道、核销定价、开放问题），不参与现有发券/结算执行路径。
+type PricingRuleSet struct {
+	ID        string    `gorm:"primaryKey;size:64" json:"id"`
+	Source    string    `gorm:"size:255" json:"source"`
+	Version   string    `gorm:"size:64" json:"version"`
+	Payload   string    `gorm:"type:text" json:"payload"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 // MatchesScope 券是否适用于指定业务与商品。
 func (v *Voucher) MatchesScope(scope, productID string) bool {
 	switch v.Scope {

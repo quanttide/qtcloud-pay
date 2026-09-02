@@ -6,6 +6,8 @@
 
 面值抵现券的发放（幂等）、过期流转、结算时抵现。代金券本身**就是钱**，结算时直接抵减应付款项。
 
+新增 `PricingRuleSet` 用于录入实训基地等外部计价事实（发行渠道、核销定价、开放问题）。规则集只作为配置快照落库和管理，不改变 v0.1.0 既有发券/结算执行路径。
+
 ## 依赖
 
 - `transaction`：发放 → 写入发券交易
@@ -27,6 +29,17 @@ type Voucher struct {
     UsedAt    *time.Time
     OrderID   string
     CreatedAt time.Time
+}
+```
+
+计价规则集：
+
+```go
+type PricingRuleSet struct {
+    ID      string // 如 qtclass-voucher-pricing
+    Source  string // 事实来源
+    Version string // 规则版本或更新时间
+    Payload string // 原始机器 JSON，金额字段为 *_cents
 }
 ```
 
@@ -53,6 +66,16 @@ type Voucher struct {
 |------|------|------|
 | POST | `/accounts/{id}/vouchers` | 发放（批量 + 幂等） |
 | GET | `/accounts/{id}/vouchers` | 查询 |
+| PUT | `/admin/voucher-pricing-rules/{id}` | 幂等录入/更新计价规则集（需 `X-Admin-Token`） |
+| GET | `/admin/voucher-pricing-rules/{id}` | 查询计价规则集（需 `X-Admin-Token`） |
+| GET | `/admin/voucher-pricing-rules` | 查询规则集列表（需 `X-Admin-Token`） |
+
+规则集校验：
+
+- 发行渠道 `voucher.amount_cents` 必须为正整数分，`scope` 必须为现有代金券范围（`all/cloud/course/data/product`）
+- 一对一咨询保留“服务者职级档位”维度，按 `rank_prices_cents` 录入
+- 超额申请额度保留“流程配额”维度，按 `free_limit` + `exceed_price_cents` 录入
+- `billing_semantics.voucher_is_money` 必须为 true；开放问题随 payload 保留，不阻塞上线
 
 ## 测试
 

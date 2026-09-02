@@ -30,7 +30,7 @@ func TestOpen_SQLite(t *testing.T) {
 	}
 	for _, m := range []any{
 		&account.Account{}, &transaction.Transaction{},
-		&coupon.Coupon{}, &voucher.Voucher{},
+		&coupon.Coupon{}, &voucher.Voucher{}, &voucher.PricingRuleSet{},
 		&order.Order{}, &billing.BillingRule{},
 	} {
 		if !db.Migrator().HasTable(m) {
@@ -95,6 +95,36 @@ func TestBuildMux_LedgerRoutes(t *testing.T) {
 	resp2.Body.Close()
 	if resp2.StatusCode != http.StatusNotFound {
 		t.Errorf("/pay status = %d, want 404", resp2.StatusCode)
+	}
+}
+
+func TestBuildMux_VoucherPricingRuleRoutes(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux, err := BuildMux(db, "", "secret")
+	if err != nil {
+		t.Fatalf("BuildMux: %v", err)
+	}
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	payload := `{"issuance":{"channels":[{"name":"课堂实训任务","trigger":"实训任务验收通过","voucher":{"amount_cents":10000,"scope":"all","expires_at_rule":"发放时确定"},"count_per_event":1}]},"redemption":{"scenarios":[{"scenario":"extra_application_quota","name":"超额申请额度","pricing_model":"per_count_flat","quotas":[{"application_type":"project_proposal","name":"立项申请","free_limit":1,"exceed_price_cents":10000}]}]},"billing_semantics":{"voucher_is_money":true}}`
+	body, _ := json.Marshal(map[string]any{
+		"source":  "payment-engineering/qtclass/voucher-pricing.json",
+		"version": "2026-09-01",
+		"payload": json.RawMessage(payload),
+	})
+	req, _ := http.NewRequest(http.MethodPut, ts.URL+"/admin/voucher-pricing-rules/qtclass", bytes.NewReader(body))
+	req.Header.Set("X-Admin-Token", "secret")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("PUT rule set status = %d, want 200", resp.StatusCode)
 	}
 }
 

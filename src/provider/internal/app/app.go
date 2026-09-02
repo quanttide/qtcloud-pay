@@ -46,7 +46,7 @@ func Open(driver, dsn string) (*gorm.DB, error) {
 	}
 	if err := db.AutoMigrate(
 		&account.Account{}, &transaction.Transaction{},
-		&coupon.Coupon{}, &voucher.Voucher{},
+		&coupon.Coupon{}, &voucher.Voucher{}, &voucher.PricingRuleSet{},
 		&order.Order{}, &billing.BillingRule{},
 	); err != nil {
 		return nil, err
@@ -89,7 +89,7 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	mux := http.NewServeMux()
 	account.NewHandler(accSvc, adminToken).Register(mux)
 	coupon.NewHandler(couponSvc).Register(mux)
-	voucher.NewHandler(voucherSvc).Register(mux)
+	voucher.NewHandlerWithAdmin(voucherSvc, adminToken).Register(mux)
 	order.NewHandler(orderSvc).Register(mux)
 	reconciliation.NewHandler(reconSvc).Register(mux)
 
