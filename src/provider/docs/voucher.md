@@ -72,7 +72,8 @@ type PricingRuleSet struct {
 
 规则集校验：
 
-- 发行渠道 `voucher.amount_cents` 必须为正整数分，`scope` 必须为现有代金券范围（`all/cloud/course/data/product`）
+- 固定发行渠道 `voucher.amount_cents` 必须为正整数分，`scope` 必须为现有代金券范围（`all/cloud/course/data/product`）
+- 追加奖励渠道使用 `bonus_type` 记录首次完成、产出评定、群内互动三类触发；动态等额或评定制金额写入 `voucher.amount_rule`，面额约束写入 `bonus_denomination_rule`
 - 一对一咨询保留“服务者职级档位”维度，按 `rank_prices_cents` 录入
 - 超额申请额度保留“流程配额”维度，按 `free_limit` + `exceed_price_cents` 录入
 - `billing_semantics.voucher_is_money` 必须为 true；开放问题随 payload 保留，不阻塞上线

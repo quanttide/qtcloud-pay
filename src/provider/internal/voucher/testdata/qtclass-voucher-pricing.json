@@ -1,9 +1,9 @@
 {
   "meta": {
     "description": "量潮课堂（qtclass）代金券计价事实——qtcloud-pay 发放/核销参数与计费规则的系统录入数据",
-    "source": "journal qtclass/2026-09-01.md（支持云咨询场景 + 21:34 限额规则）",
+    "source": "journal qtclass/2026-09-01.md（支持云咨询场景 + 21:34 限额规则）+ 追加奖励规则（补充，2026-09-02 入档）",
     "model_version": "qtcloud-pay voucher M2（internal/voucher/model.go）",
-    "updated_at": "2026-09-01"
+    "updated_at": "2026-09-02"
   },
   "issuance": {
     "description": "代金券发行渠道——每个渠道是发放事件（type=issue），发放参数按 qtcloud-pay 发放 API",
@@ -55,8 +55,45 @@
         },
         "count_per_event": 1,
         "entry": "课题评审流程"
+      },
+      {
+        "name": "追加奖励·首次完成",
+        "trigger": "成为首个完成某任务形式的参与者",
+        "voucher": {
+          "amount_rule": "固定等于原任务奖励金额（等额追加，随原奖励金额浮动）",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "bonus_type": "first_completion",
+        "count_per_event": "多张券组合",
+        "entry": "追加奖励规则（补充）第 1 条"
+      },
+      {
+        "name": "追加奖励·产出评定",
+        "trigger": "非首次完成任务，按产出物与标准格式匹配度及实际辅助价值评定",
+        "voucher": {
+          "amount_rule": "评定确定，仅限 100 元或 500 元面额（可多张组合，如 200 元 = 2 张 100 元）",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "bonus_type": "output_assessment",
+        "count_per_event": "多张券组合",
+        "entry": "追加奖励规则（补充）第 2 条"
+      },
+      {
+        "name": "追加奖励·群内互动",
+        "trigger": "实训基地群内技术提问、主动组队等经确认对招聘进度有正向影响的互动",
+        "voucher": {
+          "amount_rule": "评定确定，仅限 100 元或 500 元面额",
+          "scope": "all",
+          "expires_at_rule": "发放时确定"
+        },
+        "bonus_type": "group_interaction",
+        "count_per_event": "多张券组合",
+        "entry": "追加奖励规则（补充）第 3 条"
       }
-    ]
+    ],
+    "bonus_denomination_rule": "追加奖励当前仅使用 100 元、500 元两种面额发放；新增面额另行发布补充规则（追加奖励规则第 4 条）；追加发行与标准奖励分开入账，发行记录带 bonus_type 标记"
   },
   "redemption": {
     "description": "代金券核销场景——每场景是核销事件（voucher.status=used，关联订单）",
@@ -66,11 +103,26 @@
         "name": "一对一咨询预约",
         "pricing_model": "per_hour_by_rank",
         "rank_prices_cents": [
-          {"rank": "chief", "price_cents": 50000},
-          {"rank": "senior", "price_cents": 40000},
-          {"rank": "advanced", "price_cents": 30000},
-          {"rank": "intermediate", "price_cents": 20000},
-          {"rank": "junior", "price_cents": 10000}
+          {
+            "rank": "chief",
+            "price_cents": 50000
+          },
+          {
+            "rank": "senior",
+            "price_cents": 40000
+          },
+          {
+            "rank": "advanced",
+            "price_cents": 30000
+          },
+          {
+            "rank": "intermediate",
+            "price_cents": 20000
+          },
+          {
+            "rank": "junior",
+            "price_cents": 10000
+          }
         ],
         "note": "价格锚点是服务者职级档位（非商品）：BillingRule/行模型需新增服务者档位维度；群内沟通免费不消耗券——是否计费由渠道/方式决定",
         "free_alternative": "群内提问"
@@ -80,8 +132,18 @@
         "name": "超额申请额度（考核限额）",
         "pricing_model": "per_count_flat",
         "quotas": [
-          {"application_type": "project_proposal", "name": "立项申请", "free_limit": 1, "exceed_price_cents": 10000},
-          {"application_type": "delivery_review", "name": "交付申请", "free_limit": 3, "exceed_price_cents": 10000}
+          {
+            "application_type": "project_proposal",
+            "name": "立项申请",
+            "free_limit": 1,
+            "exceed_price_cents": 10000
+          },
+          {
+            "application_type": "delivery_review",
+            "name": "交付申请",
+            "free_limit": 3,
+            "exceed_price_cents": 10000
+          }
         ],
         "note": "核销标的是流程配额（非商品）；按次计费，核销记录带申请类型与次序；待验证：超额购买能否用余额支付（当前规则只说代金券）"
       }
@@ -97,4 +159,3 @@
     ]
   }
 }
-

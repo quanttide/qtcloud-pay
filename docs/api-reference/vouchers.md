@@ -76,7 +76,8 @@ X-Admin-Token: <ADMIN_TOKEN>
 
 payload 校验：
 
-- 发行渠道 `voucher.amount_cents` 必须为正整数分，`scope` 必须为 `all` / `course` / `data` / `cloud` / `product`。
+- 固定金额发行渠道 `voucher.amount_cents` 必须为正整数分，`scope` 必须为 `all` / `course` / `data` / `cloud` / `product`。
+- 追加奖励渠道使用 `bonus_type` 区分 `first_completion` / `output_assessment` / `group_interaction`，金额用 `voucher.amount_rule` 表达动态等额或评定制规则；当前面额规范保存在 `issuance.bonus_denomination_rule`。
 - 一对一咨询使用 `pricing_model=per_hour_by_rank` 和 `rank_prices_cents` 表示服务者职级档位价。
 - 超额申请额度使用 `pricing_model=per_count_flat` 和 `quotas.free_limit` / `quotas.exceed_price_cents` 表示流程配额。
 - `billing_semantics.voucher_is_money` 必须为 `true`；开放问题原样保存在 payload。

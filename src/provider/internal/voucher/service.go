@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -226,12 +227,15 @@ type pricingPayload struct {
 			Trigger string `json:"trigger"`
 			Voucher struct {
 				AmountCents   int64  `json:"amount_cents"`
+				AmountRule    string `json:"amount_rule"`
 				Scope         string `json:"scope"`
 				ExpiresAtRule string `json:"expires_at_rule"`
 			} `json:"voucher"`
-			CountPerEvent int    `json:"count_per_event"`
-			Entry         string `json:"entry"`
+			BonusType     string          `json:"bonus_type"`
+			CountPerEvent json.RawMessage `json:"count_per_event"`
+			Entry         string          `json:"entry"`
 		} `json:"channels"`
+		BonusDenominationRule string `json:"bonus_denomination_rule"`
 	} `json:"issuance"`
 	Redemption struct {
 		Scenarios []struct {
@@ -268,15 +272,29 @@ func validatePricingRuleSet(ruleSet *PricingRuleSet) error {
 	if len(payload.Issuance.Channels) == 0 || len(payload.Redemption.Scenarios) == 0 || !payload.BillingSemantics.VoucherIsMoney {
 		return ErrInvalidRuleSet
 	}
+	hasBonusChannel := false
 	for _, ch := range payload.Issuance.Channels {
-		if ch.Name == "" || ch.Trigger == "" || ch.Voucher.AmountCents <= 0 || ch.CountPerEvent <= 0 || ch.Voucher.ExpiresAtRule == "" {
+		if ch.Name == "" || ch.Trigger == "" || !validCountPerEvent(ch.CountPerEvent) || ch.Voucher.ExpiresAtRule == "" {
 			return ErrInvalidRuleSet
+		}
+		if ch.BonusType == "" {
+			if ch.Voucher.AmountCents <= 0 || ch.Voucher.AmountRule != "" {
+				return ErrInvalidRuleSet
+			}
+		} else {
+			hasBonusChannel = true
+			if !validBonusType(ch.BonusType) || ch.Voucher.AmountRule == "" || ch.Voucher.AmountCents != 0 {
+				return ErrInvalidRuleSet
+			}
 		}
 		switch ch.Voucher.Scope {
 		case ScopeAll, ScopeCloud, ScopeCourse, ScopeData, ScopeProduct:
 		default:
 			return ErrInvalidRuleSet
 		}
+	}
+	if hasBonusChannel && strings.TrimSpace(payload.Issuance.BonusDenominationRule) == "" {
+		return ErrInvalidRuleSet
 	}
 	for _, scenario := range payload.Redemption.Scenarios {
 		if scenario.Scenario == "" || scenario.Name == "" || scenario.PricingModel == "" {
@@ -306,6 +324,30 @@ func validatePricingRuleSet(ruleSet *PricingRuleSet) error {
 		}
 	}
 	return nil
+}
+
+func validCountPerEvent(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return n > 0
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return strings.TrimSpace(s) != ""
+	}
+	return false
+}
+
+func validBonusType(bonusType string) bool {
+	switch bonusType {
+	case "first_completion", "output_assessment", "group_interaction":
+		return true
+	default:
+		return false
+	}
 }
 
 // buildVouchers 按发放请求生成 count 张代金券。
