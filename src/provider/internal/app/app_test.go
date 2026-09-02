@@ -98,6 +98,35 @@ func TestBuildMux_LedgerRoutes(t *testing.T) {
 	}
 }
 
+func TestBuildMux_HealthRoute(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux, err := BuildMux(db, "", "")
+	if err != nil {
+		t.Fatalf("BuildMux: %v", err)
+	}
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("/health status = %d, want 200", resp.StatusCode)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["status"] != "ok" {
+		t.Errorf("status = %q, want ok", body["status"])
+	}
+}
+
 func TestBuildMux_VoucherPricingRuleRoutes(t *testing.T) {
 	db, err := Open("sqlite", ":memory:")
 	if err != nil {

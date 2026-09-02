@@ -3,6 +3,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -87,6 +88,7 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	reconSvc := reconciliation.NewService(db, accSvc, txSvc)
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /health", handleHealth)
 	account.NewHandler(accSvc, adminToken).Register(mux)
 	coupon.NewHandler(couponSvc).Register(mux)
 	voucher.NewHandlerWithAdmin(voucherSvc, adminToken).Register(mux)
@@ -102,6 +104,12 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 		channel.RegisterRoutes(mux, p)
 	}
 	return mux, nil
+}
+
+// handleHealth 提供只读健康检查，供 FC 部署后验收与监控探活使用。
+func handleHealth(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // NewProvider 根据渠道名从环境变量加载配置并创建 Provider。
