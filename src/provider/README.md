@@ -39,6 +39,7 @@ provider/
 │   ├── billing/                 ← 计费规则（抵扣顺序与计算）
 │   ├── order/                   ← 订单与结算（单事务编排）
 │   ├── reconciliation/          ← 对账与可查（一致性校验、账单）
+│   ├── security/                ← SECRET_KEY、JWT 校验、RBAC 权限中间件
 │   ├── channel/                 ← 支付渠道模块
 │   │   ├── transport.go         ← HTTP handler（参数绑定、协议转换）
 │   │   ├── service.go           ← Provider 接口
@@ -52,8 +53,7 @@ provider/
 │   │   └── alipay/              ← 支付宝渠道实现
 │   │       ├── alipay.go
 │   │       └── alipay_test.go
-│   └── middleware/              ← 内部中间件（请求日志）
-│       └── logging.go
+│   └── middleware/              ← 已迁移到工具库 pkg/middleware
 ├── docs/                        ← 设计文档（总览 + 各模块实现）
 ├── go.mod
 ├── go.sum
@@ -71,6 +71,7 @@ provider/
 
 ```sh
 # 微信 JSAPI 渠道（公众号/小程序）
+SECRET_KEY=本服务强随机密钥 \
 WECHAT_APP_ID=wx... WECHAT_MCH_ID=商户号 WECHAT_API_V3_KEY=... \
 WECHAT_MCH_KEY="$(cat mch_private_key.pem)" WECHAT_MCH_CERT="$(cat mch_cert.pem)" \
 WECHAT_NOTIFY_URL=https://example.com/wechat/notify \
@@ -79,6 +80,7 @@ go run ./cmd/server -addr :8080 -channel wechat
 
 ```sh
 # 支付宝网页支付渠道（PC）
+SECRET_KEY=本服务强随机密钥 \
 ALIPAY_APP_ID=2021... ALIPAY_PRIVATE_KEY="$(cat app_private_key.pem)" \
 ALIPAY_PUBLIC_KEY="$(cat alipay_public_key.pem)" \
 ALIPAY_NOTIFY_URL=https://example.com/alipay/notify \
@@ -109,6 +111,7 @@ make docker-down  # 停止
 # 生产：环境变量注入（见上文配置说明），PostgreSQL 或 SQLite 均可
 # docker run -d -p 8080:8080 \
 #   -e DB_DRIVER=postgres -e DATABASE_URL=postgres://user:pass@host:5432/pay \
+#   -e SECRET_KEY=... \
 #   qtcloud-pay-provider:latest -addr :8080
 ```
 
@@ -144,6 +147,10 @@ make docker-down  # 停止
 | POST | `/refund` | 申请退款 |
 
 金额单位：账本核心 API 的金额以**元**传输（两位小数数字，如 `99.99`），内部以整数分存储；`POST /reconcile/bank` 的 CSV 金额为分（`amount_cents`）。
+
+### 鉴权
+
+生产入口强制要求 `SECRET_KEY`。除 `GET /health` 外，账本、支付渠道、对账、规则管理和权限管理 API 均需 `Authorization: Bearer {token}` 或匹配的 `X-Admin-Token`；匿名为 401，已认证无权限为 403。角色和权限矩阵见 [docs/security.md](docs/security.md)。
 
 ## 测试
 

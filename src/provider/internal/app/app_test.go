@@ -2,6 +2,7 @@ package app
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -19,6 +20,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/billing"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/coupon"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/order"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/security"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
@@ -64,6 +66,108 @@ func TestOpenDB_PostgresInvalidDSN(t *testing.T) {
 	t.Setenv("DATABASE_URL", "://bad")
 	if _, err := OpenDB(); err == nil {
 		t.Fatal("expected error for invalid postgres dsn")
+	}
+}
+
+func TestBuildHandler_PermissionMatrix(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	secStore := security.NewStore(db)
+	if err := secStore.SetUserRoles(context.Background(), "viewer-user", []string{security.RoleViewer}); err != nil {
+		t.Fatal(err)
+	}
+	if err := secStore.SetUserRoles(context.Background(), "operator-user", []string{security.RoleOperator}); err != nil {
+		t.Fatal(err)
+	}
+	verifier, err := security.NewTokenVerifier("test-secret-key", "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	viewerToken, err := verifier.SignServiceToken("viewer-user", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	operatorToken, err := verifier.SignServiceToken("operator-user", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := BuildHandler(db, "", SecurityConfig{SecretKey: "test-secret-key", AdminToken: "admin-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	assertStatus := func(name, method, path, token, body string, want int) {
+		t.Helper()
+		req, err := http.NewRequest(method, ts.URL+path, bytes.NewReader([]byte(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Fatalf("%s status = %d, want %d", name, resp.StatusCode, want)
+		}
+	}
+
+	assertStatus("anonymous read", http.MethodGet, "/accounts/missing", "", "", http.StatusUnauthorized)
+	assertStatus("viewer write", http.MethodPost, "/accounts", viewerToken, `{"customer_id":"cust_viewer"}`, http.StatusForbidden)
+	assertStatus("operator write", http.MethodPost, "/accounts", operatorToken, `{"customer_id":"cust_operator"}`, http.StatusCreated)
+	assertStatus("viewer read", http.MethodGet, "/accounts/missing", viewerToken, "", http.StatusNotFound)
+}
+
+func TestBuildHandler_AdminTokenBypassAndBadSecret(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := BuildHandler(db, "", SecurityConfig{}); err == nil {
+		t.Fatal("expected missing SECRET_KEY error")
+	}
+	verifier, err := security.NewTokenVerifier("right-secret", "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	token, err := verifier.SignServiceToken("operator-user", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := BuildHandler(db, "", SecurityConfig{SecretKey: "wrong-secret", AdminToken: "admin-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/accounts", bytes.NewReader([]byte(`{"customer_id":"cust_bad"}`)))
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("bad secret token status = %d, want 401", resp.StatusCode)
+	}
+
+	req2, _ := http.NewRequest(http.MethodPost, ts.URL+"/accounts", bytes.NewReader([]byte(`{"customer_id":"cust_admin"}`)))
+	req2.Header.Set("X-Admin-Token", "admin-token")
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusCreated {
+		t.Fatalf("admin token status = %d, want 201", resp2.StatusCode)
 	}
 }
 

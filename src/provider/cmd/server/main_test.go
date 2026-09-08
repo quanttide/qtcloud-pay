@@ -10,6 +10,7 @@ import (
 func TestRun_InvalidAddr(t *testing.T) {
 	t.Setenv("DB_DRIVER", "")
 	t.Setenv("DB_SQLITE_DSN", filepath.Join(t.TempDir(), "run.db"))
+	t.Setenv("SECRET_KEY", "test-secret-key")
 	err := run(context.Background(), "bad addr", "")
 	if err == nil {
 		t.Fatal("expected error for invalid addr")
@@ -27,14 +28,25 @@ func TestRun_OpenDBError(t *testing.T) {
 func TestRun_BuildMuxError(t *testing.T) {
 	t.Setenv("DB_DRIVER", "")
 	t.Setenv("DB_SQLITE_DSN", filepath.Join(t.TempDir(), "run.db"))
+	t.Setenv("SECRET_KEY", "test-secret-key")
 	if err := run(context.Background(), "127.0.0.1:0", "unionpay"); err == nil {
 		t.Fatal("expected buildMux error")
+	}
+}
+
+func TestRun_MissingSecretKey(t *testing.T) {
+	t.Setenv("DB_DRIVER", "")
+	t.Setenv("DB_SQLITE_DSN", filepath.Join(t.TempDir(), "run.db"))
+	t.Setenv("SECRET_KEY", "")
+	if err := run(context.Background(), "127.0.0.1:0", ""); err == nil {
+		t.Fatal("expected missing SECRET_KEY error")
 	}
 }
 
 func TestRun_ServeAndShutdown(t *testing.T) {
 	t.Setenv("DB_DRIVER", "")
 	t.Setenv("DB_SQLITE_DSN", filepath.Join(t.TempDir(), "run.db"))
+	t.Setenv("SECRET_KEY", "test-secret-key")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)

@@ -3,6 +3,7 @@
 package app
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -24,6 +25,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/order"
 	ordergorm "github.com/quanttide/qtcloud-pay/src/provider/internal/order/gorm"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/reconciliation"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/security"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	transactiongorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transaction/gorm"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
@@ -50,6 +52,12 @@ func Open(driver, dsn string) (*gorm.DB, error) {
 		&coupon.Coupon{}, &voucher.Voucher{}, &voucher.PricingRuleSet{},
 		&order.Order{}, &billing.BillingRule{},
 	); err != nil {
+		return nil, err
+	}
+	if err := security.AutoMigrate(db); err != nil {
+		return nil, err
+	}
+	if err := security.SeedDefaults(context.Background(), db); err != nil {
 		return nil, err
 	}
 	if driver != "postgres" {
@@ -94,6 +102,12 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	voucher.NewHandlerWithAdmin(voucherSvc, adminToken).Register(mux)
 	order.NewHandler(orderSvc).Register(mux)
 	reconciliation.NewHandler(reconSvc).Register(mux)
+	secStore := security.NewStore(db)
+	secVerifier, err := security.NewTokenVerifier("test-build-mux-secret", "", "", "", "")
+	if err != nil {
+		return nil, err
+	}
+	security.NewHandler(secStore, secVerifier).Register(mux)
 
 	// 支付渠道（可选挂载）
 	if channelName != "" {
@@ -104,6 +118,41 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 		channel.RegisterRoutes(mux, p)
 	}
 	return mux, nil
+}
+
+// SecurityConfig 汇总支付服务应用层安全配置。SECRET_KEY 缺失会导致 BuildHandler 失败。
+type SecurityConfig struct {
+	SecretKey     string
+	AuthPublicJWK string
+	AuthPublicPEM string
+	AuthIssuer    string
+	AuthAudience  string
+	AdminToken    string
+}
+
+// LoadSecurityConfig 从环境变量加载安全配置。
+func LoadSecurityConfig() SecurityConfig {
+	return SecurityConfig{
+		SecretKey:     os.Getenv("SECRET_KEY"),
+		AuthPublicJWK: os.Getenv("AUTH_JWT_PUBLIC_JWK"),
+		AuthPublicPEM: os.Getenv("AUTH_JWT_PUBLIC_PEM"),
+		AuthIssuer:    os.Getenv("AUTH_JWT_ISSUER"),
+		AuthAudience:  os.Getenv("AUTH_JWT_AUDIENCE"),
+		AdminToken:    os.Getenv("ADMIN_TOKEN"),
+	}
+}
+
+// BuildHandler 在业务 mux 外挂载支付系统权限中间件，供生产入口和集成验收使用。
+func BuildHandler(db *gorm.DB, channelName string, cfg SecurityConfig) (http.Handler, error) {
+	mux, err := BuildMux(db, channelName, cfg.AdminToken)
+	if err != nil {
+		return nil, err
+	}
+	verifier, err := security.NewTokenVerifier(cfg.SecretKey, cfg.AuthPublicJWK, cfg.AuthPublicPEM, cfg.AuthIssuer, cfg.AuthAudience)
+	if err != nil {
+		return nil, err
+	}
+	return security.NewMiddleware(security.NewStore(db), verifier, cfg.AdminToken).Wrap(mux), nil
 }
 
 // handleHealth 提供只读健康检查，供 FC 部署后验收与监控探活使用。

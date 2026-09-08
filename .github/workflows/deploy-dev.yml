@@ -8,7 +8,7 @@
 #
 # 所需 GitHub secrets（org 级，沿用 prod）：
 #   - ALIYUN_ACCESS_KEY_ID / ALIYUN_ACCESS_KEY_SECRET / ALIYUN_ACR_USERNAME /
-#     ALIYUN_ACR_PASSWORD / ALIYUN_ACR_REGISTRY / DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD / ADMIN_TOKEN
+#     ALIYUN_ACR_PASSWORD / ALIYUN_ACR_REGISTRY / DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD / ADMIN_TOKEN / SECRET_KEY
 #   - DB_PASSWORD_DEV：dev 数据库账号密码（与 prod 的 DB_PASSWORD 不同值）；ADMIN_TOKEN 粘贴勿带换行
 
 name: Deploy Dev
@@ -91,6 +91,10 @@ jobs:
       ALICLOUD_REGION_ID: cn-hangzhou
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD_DEV }}
       TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
+      TF_VAR_secret_key: ${{ secrets.SECRET_KEY }}
+      TF_VAR_auth_jwt_public_jwk: ${{ secrets.AUTH_JWT_PUBLIC_JWK }}
+      TF_VAR_auth_jwt_issuer: ${{ vars.AUTH_JWT_ISSUER }}
+      TF_VAR_auth_jwt_audience: ${{ vars.AUTH_JWT_AUDIENCE }}
 
     steps:
       - name: Checkout

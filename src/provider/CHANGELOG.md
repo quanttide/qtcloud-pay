@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Added
+- 新增 `internal/security`：应用级 `SECRET_KEY` 强启动校验、HS256 服务端短期凭据、qtcloud-auth RS256 JWT 公钥校验、角色/权限/用户角色表和 fail-closed 权限中间件。
+- 新增权限管理 API：查询角色权限、分配用户角色、签发短期服务端凭据；默认角色为 `admin` / `operator` / `viewer`。
+
+### Changed
+- `cmd/server` 生产入口改走 `app.BuildHandler`，除 `/health` 外的账本、渠道、对账、规则和权限管理端点均需认证授权；匿名 401，已认证无权 403，`X-Admin-Token` 作为系统级超管通道保留。
+- Terraform 与 GitHub Actions 增加 `SECRET_KEY`、`AUTH_JWT_PUBLIC_JWK`、`AUTH_JWT_ISSUER`、`AUTH_JWT_AUDIENCE` 注入。
+
 ## [0.1.0-alpha.10] - 2026-09-02
 
 ### Added

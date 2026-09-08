@@ -7,6 +7,7 @@
 | 文档 | 内容 | 里程碑 |
 |------|------|--------|
 | [conventions](conventions.md) 设计约束与实现约定 | 关键设计约束、存储/事务/幂等/金额约定 | — |
+| [security](security.md) 安全与权限 | 网关 JWT、SECRET_KEY、RBAC 权限矩阵 | F1 |
 | [account](account.md) 账户与余额 | 充值登记、余额查询 | M1 |
 | [transaction](transaction.md) 交易账本 | 账本写入唯一入口、流水查询 | M1 |
 | [coupon](coupon.md) 优惠券 | 发放、过期流转、核销 | M2 |
@@ -28,7 +29,8 @@
 | 计费规则 | `internal/billing` | 抵扣顺序配置与抵扣计算（纯计算，无存储依赖） | M3 |
 | 对账与可查 | `internal/reconciliation` | 一致性校验、对公打款核对、账单导出 | M4 |
 | 支付渠道 | `internal/channel` | 微信 JSAPI / 支付宝网页支付（现有，保持独立） | M5 |
-| 中间件 | `internal/middleware` | 请求日志（现有） | — |
+| 安全权限 | `internal/security` | SECRET_KEY、自签服务端凭据、JWT 校验、角色权限表和中间件 | F1 |
+| 中间件 | 工具库 `pkg/middleware` | 请求日志（现有） | — |
 
 账本核心 = `account` + `transaction`（对应路线图中的 `ledger`）。`channel` 是后接的可替换渠道层，v0.2.0 接入时作为交易来源，**模型不变，变的只是交易来源**。
 

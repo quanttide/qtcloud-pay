@@ -12,7 +12,7 @@
 
 | # | 优先级 | 问题 | 落点 | 状态 |
 |---|--------|------|------|------|
-| F1 | P0 | 账本 API 零认证 + FC 触发器 `anonymous`：公网任意人可充值/退款/发券，**生产阻塞**（网关未接入前必须有应用层鉴权） | `internal/middleware` 新增鉴权中间件，`app.BuildMux` 挂载 | 未开始 |
+| F1 | P0 | 账本 API 零认证 + FC 触发器 `anonymous`：公网任意人可充值/退款/发券，**生产阻塞**（网关未接入前必须有应用层鉴权） | `internal/security` 鉴权权限中间件，`app.BuildHandler` 挂载 | 已完成（待网关插件实地绑定验收） |
 | F2 | P0 | 微信金额 float64 元→分 `int(x*100)` 截断精度错误（0.29→28 分） | `internal/channel` 模型改 int64 分（对齐 `money.Cents`），删 `*100` 转换与 `parseAmount` | 未开始 |
 | F3 | P1 | 支付通知无回调路由：`ParseNotify` 已实现未挂载，支付成功无法入账 | `channel.RegisterRoutes` 补 `POST /notify` + 回调验签（与 T5 联动） | 未开始 |
 | F4 | P1 | 微信退款参数错误：`TotalAmount` 填了退款金额（应原单总额）；`OutRefundNo=OrderID+"-REFUND"` 同一订单只能退一次 | `internal/channel/adapters.go` Refund：TotalAmount 传原单总额、OutRefundNo 独立生成 | 未开始 |

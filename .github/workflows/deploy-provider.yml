@@ -8,6 +8,8 @@
 #   - ALIYUN_ACCESS_KEY_ID / ALIYUN_ACCESS_KEY_SECRET：RAM 用户 AccessKey（terraform 用，PowerUserAccess）
 #   - ALIYUN_ACR_USERNAME / ALIYUN_ACR_PASSWORD / ALIYUN_ACR_REGISTRY：ACR 固定凭证（docker login；REGISTRY 为本实例公网地址 crpi-xxx.personal.cr.aliyuncs.com）
 #   - DB_PASSWORD：RDS 数据库密码（注入 TF_VAR_db_password）
+#   - SECRET_KEY：应用级服务端密钥（注入 TF_VAR_secret_key，强随机值）
+#   - AUTH_JWT_PUBLIC_JWK：qtcloud-auth JWT 公钥 JWK/JWKS（可为空，但网关上线前必须配置）
 #   - DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD：Docker Hub 凭证（双通道之一）
 #
 # 前置条件：
@@ -104,6 +106,10 @@ jobs:
       ALICLOUD_REGION_ID: cn-hangzhou
       TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
       TF_VAR_admin_token: ${{ secrets.ADMIN_TOKEN }}
+      TF_VAR_secret_key: ${{ secrets.SECRET_KEY }}
+      TF_VAR_auth_jwt_public_jwk: ${{ secrets.AUTH_JWT_PUBLIC_JWK }}
+      TF_VAR_auth_jwt_issuer: ${{ vars.AUTH_JWT_ISSUER }}
+      TF_VAR_auth_jwt_audience: ${{ vars.AUTH_JWT_AUDIENCE }}
 
     steps:
       - name: Checkout

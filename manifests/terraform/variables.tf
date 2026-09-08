@@ -57,3 +57,28 @@ variable "admin_token" {
   sensitive   = true
   default     = ""
 }
+
+variable "secret_key" {
+  description = "应用级 SECRET_KEY，用于支付服务端自签凭据校验。由 CI 注入（TF_VAR_secret_key = secret SECRET_KEY），缺失时服务启动失败"
+  type        = string
+  sensitive   = true
+}
+
+variable "auth_jwt_public_jwk" {
+  description = "qtcloud-auth JWT 公钥 JWK/JWKS。配置后服务端可校验账号系统签发的 RS256 JWT；为空时仍依赖 SECRET_KEY 服务端凭据与 ADMIN_TOKEN"
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "auth_jwt_issuer" {
+  description = "qtcloud-auth JWT iss 校验值；为空则不校验 issuer"
+  type        = string
+  default     = ""
+}
+
+variable "auth_jwt_audience" {
+  description = "qtcloud-auth JWT aud 校验值；为空则不校验 audience"
+  type        = string
+  default     = ""
+}

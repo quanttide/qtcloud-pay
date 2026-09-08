@@ -10,7 +10,7 @@
 4. **渠道独立演进**：`channel` 不依赖账本模块，账本跑通前不扩展渠道能力
 5. **存储双引擎**：开发环境 SQLite、生产环境 PostgreSQL，由 GORM（类似 SQLAlchemy 的 ORM）统一调度——repository 只写一套 GORM 实现，方言（sqlite/postgres）由 `cmd/server` 按配置（`DB_DRIVER` / `DATABASE_URL`）在启动时选择；迁移用 GORM AutoMigrate，生产环境后续引入版本化迁移
 6. **渠道与账本刻意平行（v0.1.0 MVP 边界）**：`channel` 不写 `order` 表、支付成功不入账；外部支付只是旁挂的可选模块（`-channel` flag 默认为空）。生产 FC 部署目前即纯账本 API（terraform 无渠道环境变量）。业务闭环（支付→入账）明确推迟到 v0.2.0（ROADMAP T5/F3）。v0.1.0 的「支付」语义限定为**余额/券抵扣**（`order.Settle`）
-7. **配置全走环境变量、零配置文件、零启动校验**：对齐 FC 环境变量注入（`DB_DRIVER`/`DATABASE_URL`/渠道密钥等）；账本模块无配置依赖，渠道缺配置在 `NewProvider` 时即报错，不会带病启动
+7. **配置全走环境变量、零配置文件、关键安全配置强校验**：对齐 FC 环境变量注入（`DB_DRIVER`/`DATABASE_URL`/`SECRET_KEY`/渠道密钥等）；生产入口缺失 `SECRET_KEY` 直接启动失败，渠道缺配置在 `NewProvider` 时即报错，不会带病启动
 8. **无后台任务**：券过期用**惰性流转**（读取时更新状态），不做定时任务；对账为按需调用，无调度器
 
 ## 通用实现约定

@@ -36,7 +36,7 @@ func run(ctx context.Context, addr, channelName string) error {
 	if err != nil {
 		return err
 	}
-	mux, err := app.BuildMux(db, channelName, os.Getenv("ADMIN_TOKEN"))
+	handler, err := app.BuildHandler(db, channelName, app.LoadSecurityConfig())
 	if err != nil {
 		return err
 	}
@@ -47,7 +47,7 @@ func run(ctx context.Context, addr, channelName string) error {
 	}
 	log.Printf("API server listening on %s", ln.Addr())
 
-	srv := &http.Server{Handler: middleware.Logging(mux)}
+	srv := &http.Server{Handler: middleware.Logging(handler)}
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
