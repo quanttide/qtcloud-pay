@@ -102,12 +102,6 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	voucher.NewHandlerWithAdmin(voucherSvc, adminToken).Register(mux)
 	order.NewHandler(orderSvc).Register(mux)
 	reconciliation.NewHandler(reconSvc).Register(mux)
-	secStore := security.NewStore(db)
-	secVerifier, err := security.NewTokenVerifier("test-build-mux-secret", "", "", "", "")
-	if err != nil {
-		return nil, err
-	}
-	security.NewHandler(secStore, secVerifier).Register(mux)
 
 	// 支付渠道（可选挂载）
 	if channelName != "" {
@@ -152,7 +146,9 @@ func BuildHandler(db *gorm.DB, channelName string, cfg SecurityConfig) (http.Han
 	if err != nil {
 		return nil, err
 	}
-	return security.NewMiddleware(security.NewStore(db), verifier, cfg.AdminToken).Wrap(mux), nil
+	store := security.NewStore(db)
+	security.NewHandler(store, verifier).Register(mux)
+	return security.NewMiddleware(store, verifier, cfg.AdminToken).Wrap(mux), nil
 }
 
 // handleHealth 提供只读健康检查，供 FC 部署后验收与监控探活使用。

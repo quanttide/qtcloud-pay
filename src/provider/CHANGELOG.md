@@ -10,6 +10,9 @@
 - `cmd/server` 生产入口改走 `app.BuildHandler`，除 `/health` 外的账本、渠道、对账、规则和权限管理端点均需认证授权；匿名 401，已认证无权 403，`X-Admin-Token` 作为系统级超管通道保留。
 - Terraform 与 GitHub Actions 增加 `SECRET_KEY`、`AUTH_JWT_PUBLIC_JWK`、`AUTH_JWT_ISSUER`、`AUTH_JWT_AUDIENCE` 注入。
 
+### Fixed
+- 权限管理 API 改为在 `BuildHandler` 中使用真实 `SECRET_KEY` verifier 注册，避免服务端短期凭据使用测试密钥签发。
+
 ## [0.1.0-alpha.10] - 2026-09-02
 
 ### Added

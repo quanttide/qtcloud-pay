@@ -171,6 +171,47 @@ func TestBuildHandler_AdminTokenBypassAndBadSecret(t *testing.T) {
 	}
 }
 
+func TestBuildHandler_ServiceTokenUsesSecretKey(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := BuildHandler(db, "", SecurityConfig{SecretKey: "real-secret-key", AdminToken: "admin-token"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodPost, ts.URL+"/admin/security/service-tokens", bytes.NewReader([]byte(`{"subject":"svc-no-role","ttl_seconds":300}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Admin-Token", "admin-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("service token status = %d, want 201", resp.StatusCode)
+	}
+	var body struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	req2, _ := http.NewRequest(http.MethodGet, ts.URL+"/accounts/missing", nil)
+	req2.Header.Set("Authorization", "Bearer "+body.Token)
+	resp2, err := http.DefaultClient.Do(req2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != http.StatusForbidden {
+		t.Fatalf("service token no role status = %d, want 403", resp2.StatusCode)
+	}
+}
+
 func TestBuildMux_LedgerRoutes(t *testing.T) {
 	db, err := Open("sqlite", ":memory:")
 	if err != nil {
