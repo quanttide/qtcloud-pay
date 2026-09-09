@@ -252,21 +252,27 @@ func parseRSAPublicPEM(raw string) (*rsa.PublicKey, error) {
 }
 
 func parseJWKSet(raw string) ([]*rsa.PublicKey, error) {
-	var set struct {
-		Keys []struct {
-			Kty string `json:"kty"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		} `json:"keys"`
+	type jwk struct {
+		Kty string `json:"kty"`
+		N   string `json:"n"`
+		E   string `json:"e"`
 	}
-	if err := json.Unmarshal([]byte(raw), &set); err != nil {
-		var one struct {
-			Kty string `json:"kty"`
-			N   string `json:"n"`
-			E   string `json:"e"`
-		}
+	var set struct {
+		Keys []jwk `json:"keys"`
+	}
+	if err := json.Unmarshal([]byte(raw), &set); err != nil || len(set.Keys) == 0 {
+		var one jwk
 		if err2 := json.Unmarshal([]byte(raw), &one); err2 != nil {
-			return nil, err
+			if err != nil {
+				return nil, err
+			}
+			return nil, err2
+		}
+		if one.Kty == "" && one.N == "" && one.E == "" {
+			if err != nil {
+				return nil, err
+			}
+			return nil, ErrInvalidToken
 		}
 		set.Keys = append(set.Keys, one)
 	}

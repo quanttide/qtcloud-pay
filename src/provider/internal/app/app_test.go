@@ -3,10 +3,13 @@ package app
 import (
 	"bytes"
 	"context"
+	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"math/big"
@@ -212,6 +215,62 @@ func TestBuildHandler_ServiceTokenUsesSecretKey(t *testing.T) {
 	}
 }
 
+func TestBuildHandler_AuthTokenOwnerRead(t *testing.T) {
+	db, err := Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatal(err)
+	}
+	handler, err := BuildHandler(db, "", SecurityConfig{
+		SecretKey:     "test-secret-key",
+		AdminToken:    "admin-token",
+		AuthPublicJWK: testRSAJWK(&key.PublicKey),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(handler)
+	defer ts.Close()
+
+	ownerAccount := createAccountWithAdmin(t, ts.URL, "auth-user-1")
+	otherAccount := createAccountWithAdmin(t, ts.URL, "auth-user-2")
+	ownerToken := signRS256TestToken(t, key, "auth-user-1")
+
+	assertStatus := func(name, method, path, token, body string, want int) {
+		t.Helper()
+		req, err := http.NewRequest(method, ts.URL+path, bytes.NewReader([]byte(body)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("%s: %v", name, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode != want {
+			t.Fatalf("%s status = %d, want %d", name, resp.StatusCode, want)
+		}
+	}
+
+	assertStatus("anonymous owner read", http.MethodGet, "/customers/auth-user-1/account", "", "", http.StatusUnauthorized)
+	assertStatus("owner customer account", http.MethodGet, "/customers/auth-user-1/account", ownerToken, "", http.StatusOK)
+	assertStatus("other customer account", http.MethodGet, "/customers/auth-user-2/account", ownerToken, "", http.StatusForbidden)
+	assertStatus("owner account detail", http.MethodGet, "/accounts/"+ownerAccount, ownerToken, "", http.StatusOK)
+	assertStatus("owner transactions", http.MethodGet, "/accounts/"+ownerAccount+"/transactions", ownerToken, "", http.StatusOK)
+	assertStatus("owner statement", http.MethodGet, "/accounts/"+ownerAccount+"/statement", ownerToken, "", http.StatusOK)
+	assertStatus("other transactions", http.MethodGet, "/accounts/"+otherAccount+"/transactions", ownerToken, "", http.StatusForbidden)
+	assertStatus("owner write still forbidden", http.MethodPost, "/accounts/"+ownerAccount+"/recharges", ownerToken, `{"amount":{"amount":1,"currency":"CNY"},"voucher_no":"owner-write-denied"}`, http.StatusForbidden)
+}
+
 func TestBuildMux_LedgerRoutes(t *testing.T) {
 	db, err := Open("sqlite", ":memory:")
 	if err != nil {
@@ -405,6 +464,58 @@ func generateTestCertPEM(t *testing.T) (privPEM, certPEM string) {
 	}
 	certPEM = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER}))
 	return privPEM, certPEM
+}
+
+func createAccountWithAdmin(t *testing.T, baseURL, customerID string) string {
+	t.Helper()
+	body, _ := json.Marshal(map[string]string{"customer_id": customerID})
+	req, err := http.NewRequest(http.MethodPost, baseURL+"/accounts", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Admin-Token", "admin-token")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create account status = %d, want 201", resp.StatusCode)
+	}
+	var got struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&got); err != nil {
+		t.Fatal(err)
+	}
+	if got.ID == "" {
+		t.Fatal("created account missing id")
+	}
+	return got.ID
+}
+
+func testRSAJWK(pub *rsa.PublicKey) string {
+	return `{"kty":"RSA","alg":"RS256","n":"` + base64.RawURLEncoding.EncodeToString(pub.N.Bytes()) + `","e":"` + base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()) + `"}`
+}
+
+func signRS256TestToken(t *testing.T, key *rsa.PrivateKey, subject string) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"RS256","typ":"JWT"}`))
+	payload, err := json.Marshal(map[string]any{
+		"sub": subject,
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := header + "." + base64.RawURLEncoding.EncodeToString(payload)
+	sum := sha256.Sum256([]byte(body))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	return body + "." + base64.RawURLEncoding.EncodeToString(sig)
 }
 
 var _ = filepath.Join

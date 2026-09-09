@@ -46,6 +46,15 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 			httpapi.WriteError(w, http.StatusUnauthorized, "unauthorized")
 			return
 		}
+		allowed, err := m.ownerReadAllowed(r, claims.Subject)
+		if err != nil {
+			httpapi.WriteError(w, http.StatusInternalServerError, "permission lookup failed")
+			return
+		}
+		if allowed {
+			next.ServeHTTP(w, r)
+			return
+		}
 		perms, err := m.store.PermissionsForUser(r.Context(), claims.Subject)
 		if err != nil {
 			httpapi.WriteError(w, http.StatusInternalServerError, "permission lookup failed")
@@ -68,12 +77,68 @@ func (m *Middleware) Wrap(next http.Handler) http.Handler {
 	})
 }
 
+func (m *Middleware) ownerReadAllowed(r *http.Request, subject string) (bool, error) {
+	if r.Method != http.MethodGet {
+		return false, nil
+	}
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		return false, nil
+	}
+	if customerID, ok := customerAccountPath(r.URL.Path); ok {
+		return subject == customerID, nil
+	}
+	if accountID, ok := ownedAccountReadPath(r.URL.Path); ok {
+		customerID, found, err := m.store.CustomerIDForAccount(r.Context(), accountID)
+		if err != nil || !found {
+			return false, err
+		}
+		return subject == customerID, nil
+	}
+	return false, nil
+}
+
 func bearerToken(r *http.Request) string {
 	auth := strings.TrimSpace(r.Header.Get("Authorization"))
 	if strings.HasPrefix(strings.ToLower(auth), "bearer ") {
 		return strings.TrimSpace(auth[len("bearer "):])
 	}
 	return strings.TrimSpace(r.Header.Get("X-Service-Token"))
+}
+
+func customerAccountPath(path string) (string, bool) {
+	parts := splitPath(path)
+	if len(parts) == 3 && parts[0] == "customers" && parts[2] == "account" {
+		return parts[1], true
+	}
+	return "", false
+}
+
+func ownedAccountReadPath(path string) (string, bool) {
+	parts := splitPath(path)
+	if len(parts) < 2 || parts[0] != "accounts" {
+		return "", false
+	}
+	if len(parts) == 2 {
+		return parts[1], true
+	}
+	if len(parts) != 3 {
+		return "", false
+	}
+	switch parts[2] {
+	case "transactions", "statement", "coupons", "vouchers":
+		return parts[1], true
+	default:
+		return "", false
+	}
+}
+
+func splitPath(path string) []string {
+	path = strings.Trim(path, "/")
+	if path == "" {
+		return nil
+	}
+	return strings.Split(path, "/")
 }
 
 func requiredPermission(method, path string) (string, bool) {

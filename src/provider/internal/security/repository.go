@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -66,6 +67,21 @@ func (s *Store) PermissionsForUser(ctx context.Context, userID string) (map[stri
 		perms[row.Permission] = struct{}{}
 	}
 	return perms, nil
+}
+
+func (s *Store) CustomerIDForAccount(ctx context.Context, accountID string) (string, bool, error) {
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return "", false, nil
+	}
+	var acc account.Account
+	if err := s.db.WithContext(ctx).Select("customer_id").Where("id = ?", accountID).First(&acc).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return acc.CustomerID, true, nil
 }
 
 func (s *Store) ListRoles(ctx context.Context) ([]Role, error) {
