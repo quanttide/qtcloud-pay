@@ -25,6 +25,8 @@
 | `AUTH_JWT_ISSUER` | 否 | 校验 `iss` |
 | `AUTH_JWT_AUDIENCE` | 否 | 校验 `aud` |
 
+当前生产接入 qtcloud-auth 时，`AUTH_JWT_ISSUER` 与 `AUTH_JWT_AUDIENCE` 必须保持为空：qtcloud-auth 当前 access token 无 `iss`，且 `aud` 为客户端 ID `qtcloud-auth`，误配任一值都会导致全部合法用户 token 被支付服务拒绝。
+
 `SECRET_KEY` 必须使用强随机值并放在 GitHub 仓库级 secret；密码本单独表格记录：系统 `qtcloud-pay`、用途 `provider SECRET_KEY`、存储位置 `GitHub secret SECRET_KEY`。如执行人无密码本权限，汇报标注“待黎想登记”。
 
 ## 角色矩阵

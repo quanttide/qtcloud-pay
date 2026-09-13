@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.14] - 2026-09-14
+
 ### Added
 - 新增 `internal/security`：应用级 `SECRET_KEY` 强启动校验、HS256 服务端短期凭据、qtcloud-auth RS256 JWT 公钥校验、角色/权限/用户角色表和 fail-closed 权限中间件。
 - 新增权限管理 API：查询角色权限、分配用户角色、签发短期服务端凭据；默认角色为 `admin` / `operator` / `viewer`。
