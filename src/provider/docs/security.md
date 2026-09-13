@@ -8,6 +8,8 @@
 2. 服务端应用层 SECRET_KEY：支付服务自行签发和校验服务端凭据，账号系统异常时仍 fail-closed。
 3. 支付域权限表：按用户、角色、权限校验每个业务端点。
 
+身份验签实现（JWK/PEM/JWKS 解析、RS256/HS256 校验、claims 标准化、服务间凭据签发）由 `quanttide-auth-toolkit/packages/go` 提供，接入契约见其 `docs/toolkit-contract.md`；`internal/security/token.go` 为其薄封装。HTTP 中间件、路由保护表、权限表与属主校验仍由本仓库 `internal/security` 实现。
+
 `GET /health` 是公开探活端点；其他账本、渠道、对账、规则和权限管理端点均受权限中间件保护。匿名请求返回 401，已认证但无权限返回 403。`X-Admin-Token` 保留为系统级超管通道，用于紧急运维和权限初始化；生产必须通过 secret 注入，缺失时不会打开对应能力。
 
 钱包读端点额外支持属主校验：qtcloud-auth JWT 验签通过后，`sub` 与 `customer_id` 匹配时，可读取 `GET /customers/{customer_id}/account`；按账户 ID 查询的自有读端点会先查账户归属，归属者匹配时可读取账户详情、流水、账单、优惠券和代金券列表。属主校验只覆盖读端点，不授予充值、退款、发券、开户、删除、规则或权限管理能力；这些写端点仍走角色/权限表，空表 fail-closed。
