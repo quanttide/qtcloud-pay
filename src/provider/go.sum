@@ -33,6 +33,8 @@ github.com/mattn/go-sqlite3 v1.14.22 h1:2gZY6PC6kBnID23Tichd1K+Z0oS6nE/XwU+Vz/5o
 github.com/mattn/go-sqlite3 v1.14.22/go.mod h1:Uh1q+B4BYcTPb+yiD3kU8Ct7aC0hY9fxUwlHK0RXw+Y=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
+github.com/quanttide/quanttide-auth-toolkit/packages/go v0.0.1 h1:9NscxO/j+loBJj4zUZ5qCQWUcIKw5GSYbIB/JOxAR2o=
+github.com/quanttide/quanttide-auth-toolkit/packages/go v0.0.1/go.mod h1:ioPOUy4f4xQoQGHpeb77ptIEwkDTa4l9lRsXYeaudPU=
 github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.1 h1:XFai8TdQ8s9GvPfkqupTNfRFoy9as0r7sVHfpVX4qBg=
 github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.1/go.mod h1:+jsV6JWcXCFBj57BUQzkjZJZfEoGNeuEJNn4m09pU8U=
 github.com/stretchr/objx v0.1.0/go.mod h1:HFkY916IF+rwdDfMAkV7OtwuqBVzrE8GR6GFx+wExME=

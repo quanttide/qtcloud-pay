@@ -4,6 +4,7 @@ go 1.26.4
 
 require (
 	github.com/go-pay/gopay v1.5.122
+	github.com/quanttide/quanttide-auth-toolkit/packages/go v0.0.1
 	github.com/quanttide/quanttide-pay-toolkit/packages/go v0.0.1
 	gorm.io/driver/postgres v1.6.2
 	gorm.io/driver/sqlite v1.6.0

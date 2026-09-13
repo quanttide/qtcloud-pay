@@ -7,6 +7,7 @@
 - 新增权限管理 API：查询角色权限、分配用户角色、签发短期服务端凭据；默认角色为 `admin` / `operator` / `viewer`。
 
 ### Changed
+- `internal/security` 的 JWT/JWK/服务间凭据实现迁移为依赖 `quanttide-auth-toolkit/packages/go`，保留现有 `AUTH_JWT_PUBLIC_JWK` / `AUTH_JWT_PUBLIC_PEM` / `SECRET_KEY` 配置与 401/403 语义。
 - auth JWT 验签通过后支持钱包属主读校验：`sub == customer_id` 时可读取自己的账户、流水、账单、券列表；他人数据仍 403，写端点仍需角色权限或 `X-Admin-Token`。
 - `cmd/server` 生产入口改走 `app.BuildHandler`，除 `/health` 外的账本、渠道、对账、规则和权限管理端点均需认证授权；匿名 401，已认证无权 403，`X-Admin-Token` 作为系统级超管通道保留。
 - Terraform 与 GitHub Actions 增加 `SECRET_KEY`、`AUTH_JWT_PUBLIC_JWK`、`AUTH_JWT_ISSUER`、`AUTH_JWT_AUDIENCE` 注入。
