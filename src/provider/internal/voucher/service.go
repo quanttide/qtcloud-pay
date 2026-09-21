@@ -61,19 +61,31 @@ func NewService(db *gorm.DB, repo Repository, txSvc *transaction.Service) *Servi
 // Issue 批量发放代金券（幂等：同一批次号只发一次）。
 // 发放本身生成一条发券交易，保证账本完整（不丢）。
 func (s *Service) Issue(ctx context.Context, req *IssueRequest) error {
+	_, err := s.IssueWithDB(ctx, s.db, req)
+	return err
+}
+
+// IssueWithDB 在传入的数据库连接或事务内发放代金券。
+// 返回本批次券列表，供转赠等上层编排建立审计链；幂等命中时返回既有批次。
+func (s *Service) IssueWithDB(ctx context.Context, db *gorm.DB, req *IssueRequest) ([]Voucher, error) {
 	if err := validateIssue(req); err != nil {
-		return err
+		return nil, err
 	}
 	key, err := idempotency.Key(idempotency.IssueVoucher, req.BatchNo)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	err = s.db.Transaction(func(tx *gorm.DB) error {
+	var issued []Voucher
+	err = db.Transaction(func(tx *gorm.DB) error {
 		exists, err := s.txSvc.Exists(ctx, tx, key)
 		if err != nil {
 			return err
 		}
 		if exists {
+			issued, err = s.repo.ListByBatch(tx, req.BatchNo)
+			if err != nil {
+				return err
+			}
 			return nil // 幂等：该批次已发放
 		}
 		n, err := s.repo.CountByBatch(tx, req.BatchNo)
@@ -81,27 +93,43 @@ func (s *Service) Issue(ctx context.Context, req *IssueRequest) error {
 			return err
 		}
 		if n > 0 {
+			issued, err = s.repo.ListByBatch(tx, req.BatchNo)
+			if err != nil {
+				return err
+			}
 			return nil // 幂等：券已存在（防御分支）
 		}
 		vouchers := buildVouchers(req)
 		if err := s.repo.CreateBatch(tx, vouchers); err != nil {
 			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				issued, err = s.repo.ListByBatch(tx, req.BatchNo)
+				if err != nil {
+					return err
+				}
 				return nil // 并发下另一请求已发放
 			}
 			return err
 		}
-		return s.txSvc.Append(ctx, tx, &transaction.Transaction{
+		if err := s.txSvc.Append(ctx, tx, &transaction.Transaction{
 			AccountID:      req.AccountID,
 			Type:           transaction.TypeIssue,
 			Amount:         int64(len(vouchers)) * req.Amount,
 			IdempotencyKey: key,
 			Note:           req.Note,
-		})
+		}); err != nil {
+			return err
+		}
+		issued, err = s.repo.ListByBatch(tx, req.BatchNo)
+		return err
 	})
 	if errors.Is(err, transaction.ErrDuplicateKey) {
-		return nil // 并发下另一请求已发放（发券交易幂等键冲突），本请求整体回滚，视为成功
+		issued, err = s.repo.ListByBatch(db, req.BatchNo)
+		if err != nil {
+			return nil, err
+		}
+		return issued, nil // 并发下另一请求已发放（发券交易幂等键冲突），本请求整体回滚，视为成功
 	}
-	return err
+	return issued, err
 }
 
 // List 查询账户代金券（id 倒序），并惰性流转过期状态。

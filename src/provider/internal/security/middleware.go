@@ -2,6 +2,7 @@ package security
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/httpapi"
@@ -95,6 +96,16 @@ func (m *Middleware) ownerReadAllowed(r *http.Request, subject string) (bool, er
 		}
 		return subject == customerID, nil
 	}
+	if transferID, ok := transferDetailPath(r.URL.Path); ok {
+		return m.store.TransferOwnedBySubject(r.Context(), transferID, subject)
+	}
+	if accountID, ok := transferListAccount(r); ok {
+		customerID, found, err := m.store.CustomerIDForAccount(r.Context(), accountID)
+		if err != nil || !found {
+			return false, err
+		}
+		return subject == customerID, nil
+	}
 	return false, nil
 }
 
@@ -133,6 +144,23 @@ func ownedAccountReadPath(path string) (string, bool) {
 	}
 }
 
+func transferDetailPath(path string) (int64, bool) {
+	parts := splitPath(path)
+	if len(parts) != 2 || parts[0] != "transfers" {
+		return 0, false
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	return id, err == nil && id > 0
+}
+
+func transferListAccount(r *http.Request) (string, bool) {
+	if strings.Trim(r.URL.Path, "/") != "transfers" {
+		return "", false
+	}
+	accountID := strings.TrimSpace(r.URL.Query().Get("account_id"))
+	return accountID, accountID != ""
+}
+
 func splitPath(path string) []string {
 	path = strings.Trim(path, "/")
 	if path == "" {
@@ -160,6 +188,10 @@ func requiredPermission(method, path string) (string, bool) {
 }
 
 var routeRules = []routeRule{
+	{method: http.MethodPost, prefix: "/transfers/", contains: "/review", permission: PermTransferReview},
+	{method: http.MethodPost, exact: "/transfers", permission: PermTransferWrite},
+	{method: http.MethodGet, exact: "/transfers", permission: PermTransferRead},
+	{method: http.MethodGet, prefix: "/transfers/", permission: PermTransferRead},
 	{method: http.MethodPost, prefix: "/accounts/", contains: "/coupons", permission: PermCouponWrite},
 	{method: http.MethodPost, prefix: "/accounts/", contains: "/vouchers", permission: PermVoucherWrite},
 	{method: http.MethodPost, prefix: "/accounts/", contains: "/recharges", permission: PermAccountWrite},

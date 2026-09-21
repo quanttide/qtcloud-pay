@@ -50,6 +50,13 @@ func (r *VoucherRepo) ListByAccount(db *gorm.DB, accountID string) ([]voucher.Vo
 	return list, err
 }
 
+func (r *VoucherRepo) ListByBatch(db *gorm.DB, batchNo string) ([]voucher.Voucher, error) {
+	var list []voucher.Voucher
+	err := db.Where("batch_no = ?", batchNo).
+		Order("id ASC").Find(&list).Error
+	return list, err
+}
+
 func (r *VoucherRepo) CountByBatch(db *gorm.DB, batchNo string) (int64, error) {
 	var n int64
 	err := db.Model(&voucher.Voucher{}).

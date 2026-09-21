@@ -32,14 +32,17 @@ db.AutoMigrate(
     &coupon.Coupon{}, &voucher.Voucher{},
     &voucher.PricingRuleSet{},
     &order.Order{}, &billing.BillingRule{},
+    &transfer.VoucherTransfer{},
 )
 ```
 
 ### 事务传递约定
 
 - repository 接口方法统一以 `*gorm.DB` 为首参——`*gorm.Tx` 内嵌 `*gorm.DB`，事务与共享连接可直接互换
-- 跨模块写账本的方法（充值、发券、结算）在单个数据库事务内完成，事务由编排方开启：
+- 跨模块写账本的方法（充值、发券、转赠、结算）在单个数据库事务内完成，事务由编排方开启：
   - 充值：`account.service` 开事务（锁账户 → 写充值交易）
+  - 转赠创建：`transfer.service` 开事务（锁购买账户 → 写消费交易 → 写 pending 转赠记录）
+  - 转赠审核：`transfer.service` 开事务（锁转赠记录 → 再发行代金券 → 写 approved/rejected 审核结果）
   - 结算：`order.service` 开事务（核销券 → 扣余额 → 写消费/核销交易）
 - 行锁：`GetForUpdate` 用 GORM `clause.Locking`——PostgreSQL 生成 `FOR UPDATE`；SQLite 单写者、写事务串行，无需行锁
 
@@ -50,6 +53,7 @@ db.AutoMigrate(
 | 充值 | 打款凭证号 `voucher_no` | `transaction.idempotency_key`（`recharge:{voucher_no}`） |
 | 退款（多退） | 退款凭证号 `voucher_no` | `transaction.idempotency_key`（`refund:{voucher_no}`） |
 | 发券 | 发放批次号 `batch_no` | 发券交易幂等键 `transaction.idempotency_key`（`issue:coupon:{batch_no}` / `issue:voucher:{batch_no}`）；`batch_no` 本身为普通索引，作防御性检查 |
+| 转赠购买 | 转赠业务号 `idempotency_key` | `voucher_transfers.idempotency_key`；购买流水 `transaction.idempotency_key`（`transfer:{idempotency_key}`） |
 | 结算 | 商户订单号 `order_id` | `order.id`；账本消费/核销交易 `settle:{order_id}[:redeem:{kind}:{ref}]` |
 
 说明：发券批次号按类型命名空间区分（优惠券与代金券各自自增，批次号可能相同），幂等由发券交易的全局唯一幂等键保证；`batch_no` 不做唯一约束，因为同一批次含多张券。
@@ -71,3 +75,4 @@ db.AutoMigrate(
 - 折扣券按整数百分比：9 折 = rate 90 = 省 10%，`折扣 = 应付 × (100 − rate) / 100`（向下取整）
 - 满减券：应付 ≥ threshold 时减 amount
 - 代金券：抵扣 `min(面值, 剩余应付)`
+- 转赠税率：`tax_rate_bp` 使用万分比整数，当前默认 0；再发行金额 `amount × (10000 - tax_rate_bp) / 10000`，按整数分向下取整

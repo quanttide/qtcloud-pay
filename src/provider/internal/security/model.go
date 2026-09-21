@@ -13,6 +13,9 @@ const (
 	PermAccountWrite   = "account:write"
 	PermCouponWrite    = "coupon:write"
 	PermVoucherWrite   = "voucher:write"
+	PermTransferRead   = "transfer:read"
+	PermTransferWrite  = "transfer:write"
+	PermTransferReview = "transfer:review"
 	PermOrderRead      = "order:read"
 	PermOrderWrite     = "order:write"
 	PermReconcileRead  = "reconcile:read"
@@ -55,7 +58,7 @@ type UserRole struct {
 func InitialRoles() []Role {
 	return []Role{
 		{Name: RoleAdmin, Description: "全权限"},
-		{Name: RoleOperator, Description: "日常运营：充值、退款、发券、结算和查账，无删除与权限管理"},
+		{Name: RoleOperator, Description: "日常运营：充值、退款、发券、转赠审核、结算和查账，无删除与权限管理"},
 		{Name: RoleViewer, Description: "只读查账"},
 	}
 }
@@ -64,7 +67,7 @@ func InitialRoles() []Role {
 func InitialRolePermissions() map[string][]string {
 	return map[string][]string{
 		RoleAdmin:    {PermissionAll},
-		RoleOperator: {PermAccountRead, PermAccountWrite, PermCouponWrite, PermVoucherWrite, PermOrderRead, PermOrderWrite, PermReconcileRead, PermReconcileWrite, PermRuleRead, PermRuleWrite, PermChannelPay, PermChannelQuery, PermChannelRefund},
-		RoleViewer:   {PermAccountRead, PermOrderRead, PermReconcileRead, PermRuleRead, PermChannelQuery},
+		RoleOperator: {PermAccountRead, PermAccountWrite, PermCouponWrite, PermVoucherWrite, PermTransferRead, PermTransferWrite, PermTransferReview, PermOrderRead, PermOrderWrite, PermReconcileRead, PermReconcileWrite, PermRuleRead, PermRuleWrite, PermChannelPay, PermChannelQuery, PermChannelRefund},
+		RoleViewer:   {PermAccountRead, PermTransferRead, PermOrderRead, PermReconcileRead, PermRuleRead, PermChannelQuery},
 	}
 }

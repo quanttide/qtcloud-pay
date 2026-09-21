@@ -13,6 +13,8 @@ import (
 
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/account"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/transfer"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 	"github.com/quanttide/quanttide-pay-toolkit/packages/go/pkg/idempotency"
 )
 
@@ -45,11 +47,74 @@ func (s *Service) CheckConsistency(ctx context.Context) ([]Discrepancy, error) {
 		}
 		if a.Balance != sum {
 			discrepancies = append(discrepancies, Discrepancy{
-				AccountID: a.ID, Balance: a.Balance, Expected: sum,
+				Kind: "account", AccountID: a.ID, Balance: a.Balance, Expected: sum,
+			})
+		}
+	}
+	transferDiscrepancies, err := s.checkTransferConsistency(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return append(discrepancies, transferDiscrepancies...), nil
+}
+
+func (s *Service) checkTransferConsistency(ctx context.Context) ([]Discrepancy, error) {
+	if !s.db.Migrator().HasTable(&transfer.VoucherTransfer{}) {
+		return nil, nil
+	}
+	var transfers []transfer.VoucherTransfer
+	if err := s.db.WithContext(ctx).Order("id ASC").Find(&transfers).Error; err != nil {
+		return nil, err
+	}
+	var discrepancies []Discrepancy
+	for _, tr := range transfers {
+		reason, err := s.transferDiscrepancyReason(ctx, tr)
+		if err != nil {
+			return nil, err
+		}
+		if reason != "" {
+			discrepancies = append(discrepancies, Discrepancy{
+				Kind: "transfer", TransferID: tr.ID, Reason: reason,
 			})
 		}
 	}
 	return discrepancies, nil
+}
+
+func (s *Service) transferDiscrepancyReason(ctx context.Context, tr transfer.VoucherTransfer) (string, error) {
+	var source transaction.Transaction
+	if err := s.db.WithContext(ctx).Where("id = ?", tr.SourceTransactionID).First(&source).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "source transaction missing", nil
+		}
+		return "", err
+	}
+	if source.AccountID != tr.FromAccountID || source.Type != transaction.TypeConsume || source.Amount != tr.Amount {
+		return "source transaction mismatch", nil
+	}
+	switch tr.Status {
+	case transfer.StatusPending, transfer.StatusRejected:
+		if tr.IssuedVoucherID != nil {
+			return "non-approved transfer has issued voucher", nil
+		}
+	case transfer.StatusApproved:
+		if tr.IssuedVoucherID == nil {
+			return "approved transfer missing issued voucher", nil
+		}
+		var v voucher.Voucher
+		if err := s.db.WithContext(ctx).Where("id = ?", *tr.IssuedVoucherID).First(&v).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return "issued voucher missing", nil
+			}
+			return "", err
+		}
+		if v.AccountID != tr.ToAccountID || v.Amount != tr.IssuedAmountCents() {
+			return "issued voucher mismatch", nil
+		}
+	default:
+		return "invalid transfer status", nil
+	}
+	return "", nil
 }
 
 // ReconcileBankFile 对公打款核对：解析银行流水 CSV，与充值交易按凭证号比对。

@@ -36,20 +36,24 @@ func (h *Handler) handleConsistency(w http.ResponseWriter, r *http.Request) {
 	}
 	dtos := make([]discrepancyDTO, 0, len(discrepancies))
 	for _, d := range discrepancies {
-		dtos = append(dtos, discrepancyDTO{
-			AccountID: d.AccountID,
-			Balance:   money.New(d.Balance, money.CNY),
-			Expected:  money.New(d.Expected, money.CNY),
-		})
+		dto := discrepancyDTO{Kind: d.Kind, AccountID: d.AccountID, TransferID: d.TransferID, Reason: d.Reason}
+		if d.AccountID != "" {
+			dto.Balance = money.New(d.Balance, money.CNY)
+			dto.Expected = money.New(d.Expected, money.CNY)
+		}
+		dtos = append(dtos, dto)
 	}
 	httpapi.WriteJSON(w, http.StatusOK, map[string]any{"discrepancies": dtos})
 }
 
 // discrepancyDTO 一致性差异响应（金额以元传输）。
 type discrepancyDTO struct {
-	AccountID string       `json:"account_id"`
-	Balance   *money.Money `json:"balance"`
-	Expected  *money.Money `json:"expected"`
+	Kind       string       `json:"kind,omitempty"`
+	AccountID  string       `json:"account_id,omitempty"`
+	Balance    *money.Money `json:"balance,omitempty"`
+	Expected   *money.Money `json:"expected,omitempty"`
+	TransferID int64        `json:"transfer_id,omitempty"`
+	Reason     string       `json:"reason,omitempty"`
 }
 
 func (h *Handler) handleBankFile(w http.ResponseWriter, r *http.Request) {

@@ -28,6 +28,8 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/security"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	transactiongorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transaction/gorm"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/transfer"
+	transfergorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transfer/gorm"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 	vouchergorm "github.com/quanttide/qtcloud-pay/src/provider/internal/voucher/gorm"
 )
@@ -50,7 +52,7 @@ func Open(driver, dsn string) (*gorm.DB, error) {
 	if err := db.AutoMigrate(
 		&account.Account{}, &transaction.Transaction{},
 		&coupon.Coupon{}, &voucher.Voucher{}, &voucher.PricingRuleSet{},
-		&order.Order{}, &billing.BillingRule{},
+		&order.Order{}, &billing.BillingRule{}, &transfer.VoucherTransfer{},
 	); err != nil {
 		return nil, err
 	}
@@ -93,6 +95,7 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	voucherSvc := voucher.NewService(db, vouchergorm.NewVoucherRepo(), txSvc)
 	billingSvc := billing.NewService(billinggorm.NewBillingRuleRepo())
 	orderSvc := order.NewService(db, ordergorm.NewOrderRepo(), accSvc, couponSvc, voucherSvc, billingSvc, txSvc)
+	transferSvc := transfer.NewService(db, transfergorm.NewTransferRepo(), accSvc, voucherSvc, txSvc)
 	reconSvc := reconciliation.NewService(db, accSvc, txSvc)
 
 	mux := http.NewServeMux()
@@ -101,6 +104,7 @@ func BuildMux(db *gorm.DB, channelName, adminToken string) (*http.ServeMux, erro
 	coupon.NewHandler(couponSvc).Register(mux)
 	voucher.NewHandlerWithAdmin(voucherSvc, adminToken).Register(mux)
 	order.NewHandler(orderSvc).Register(mux)
+	transfer.NewHandler(transferSvc).Register(mux)
 	reconciliation.NewHandler(reconSvc).Register(mux)
 
 	// 支付渠道（可选挂载）

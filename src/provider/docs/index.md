@@ -12,6 +12,7 @@
 | [transaction](transaction.md) 交易账本 | 账本写入唯一入口、流水查询 | M1 |
 | [coupon](coupon.md) 优惠券 | 发放、过期流转、核销 | M2 |
 | [voucher](voucher.md) 代金券 | 发放、过期流转、抵现 | M2 |
+| [transfer](transfer.md) 代金券转赠 | 购买、审核、再发行与审计链 | M2+ |
 | [billing](billing.md) 计费规则 | 抵扣顺序与计算 | M3 |
 | [order](order.md) 订单与结算 | 下单与结算编排 | M3 |
 | [reconciliation](reconciliation.md) 对账与可查 | 一致性校验、对公核对、账单 | M4 |
@@ -25,6 +26,7 @@
 | 交易账本 | `internal/transaction` | 不可变交易记录（充值/消费/发券/核销）；**账本写入唯一入口** | M1 |
 | 优惠券 | `internal/coupon` | 折扣券/满减券；发放、过期流转、结算时核销 | M2 |
 | 代金券 | `internal/voucher` | 面值抵现券；发放、过期流转、结算时抵现；计价规则集快照管理 | M2 |
+| 代金券转赠 | `internal/transfer` | 购买人余额消费、运营审核、受赠人再发行代金券；审计链可对账 | M2+ |
 | 订单与结算 | `internal/order` | 订单生命周期；结算入口（单事务协调） | M3 |
 | 计费规则 | `internal/billing` | 抵扣顺序配置与抵扣计算（纯计算，无存储依赖） | M3 |
 | 对账与可查 | `internal/reconciliation` | 一致性校验、对公打款核对、账单导出 | M4 |
@@ -41,6 +43,9 @@ flowchart TD
     order --> billing
     order --> coupon
     order --> voucher
+    transfer --> account
+    transfer --> voucher
+    transfer --> transaction
     order --> account
     account --> transaction
     coupon --> transaction
@@ -53,6 +58,7 @@ flowchart TD
 - `transaction` 是最底层模块，被所有写账本的模块依赖
 - `billing` 是纯计算模块（给定订单金额与可用券/余额，输出抵扣明细），不依赖任何存储
 - `order` 依赖最多，是结算的编排者：应用计费规则 → 写消费/核销交易 → 更新余额与券状态
+- `transfer` 复用账户、代金券和交易账本：购买写消费流水，审核通过后再发行代金券
 - `channel` 目前不依赖账本模块，v0.2.0 接入时只新增「回调 → 自动入账」适配
 
 ## 目录结构
@@ -83,6 +89,12 @@ src/provider/
 │   │   ├── model.go
 │   │   └── gorm/
 │   ├── voucher/                 ← 代金券（结构同 account）
+│   │   ├── transport.go
+│   │   ├── service.go
+│   │   ├── repository.go
+│   │   ├── model.go
+│   │   └── gorm/
+│   ├── transfer/                ← 代金券转赠（购买、审核、再发行）
 │   │   ├── transport.go
 │   │   ├── service.go
 │   │   ├── repository.go

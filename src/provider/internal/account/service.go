@@ -88,6 +88,11 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		} else if err != nil {
 			return err
 		}
+		if tx.Migrator().HasTable("voucher_transfers") {
+			if err := tx.Exec("DELETE FROM voucher_transfers WHERE from_account_id = ? OR to_account_id = ?", id, id).Error; err != nil {
+				return err
+			}
+		}
 		for _, table := range []string{"transactions", "orders", "vouchers", "coupons"} {
 			if err := tx.Exec("DELETE FROM "+table+" WHERE account_id = ?", id).Error; err != nil {
 				return err

@@ -11,6 +11,7 @@ type Repository interface {
 	GetForUpdate(db *gorm.DB, id int64) (*Voucher, error)
 	Update(db *gorm.DB, v *Voucher) error
 	ListByAccount(db *gorm.DB, accountID string) ([]Voucher, error)
+	ListByBatch(db *gorm.DB, batchNo string) ([]Voucher, error)
 	CountByBatch(db *gorm.DB, batchNo string) (int64, error)
 }
 

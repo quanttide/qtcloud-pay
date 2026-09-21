@@ -8,9 +8,12 @@ import (
 
 // Discrepancy 余额与交易不一致的账户。
 type Discrepancy struct {
-	AccountID string `json:"account_id"`
-	Balance   int64  `json:"balance"`  // 账户当前余额
-	Expected  int64  `json:"expected"` // 由交易推导的余额
+	Kind       string `json:"kind,omitempty"`
+	AccountID  string `json:"account_id,omitempty"`
+	Balance    int64  `json:"balance,omitempty"`  // 账户当前余额
+	Expected   int64  `json:"expected,omitempty"` // 由交易推导的余额
+	TransferID int64  `json:"transfer_id,omitempty"`
+	Reason     string `json:"reason,omitempty"`
 }
 
 // BankRow 银行流水 CSV 行。

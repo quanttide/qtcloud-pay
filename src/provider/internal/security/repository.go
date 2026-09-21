@@ -84,6 +84,24 @@ func (s *Store) CustomerIDForAccount(ctx context.Context, accountID string) (str
 	return acc.CustomerID, true, nil
 }
 
+func (s *Store) TransferOwnedBySubject(ctx context.Context, transferID int64, subject string) (bool, error) {
+	subject = strings.TrimSpace(subject)
+	if transferID <= 0 || subject == "" {
+		return false, nil
+	}
+	var count int64
+	err := s.db.WithContext(ctx).
+		Table("voucher_transfers AS vt").
+		Joins("JOIN accounts AS fa ON fa.id = vt.from_account_id").
+		Joins("JOIN accounts AS ta ON ta.id = vt.to_account_id").
+		Where("vt.id = ? AND (fa.customer_id = ? OR ta.customer_id = ?)", transferID, subject, subject).
+		Count(&count).Error
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
 func (s *Store) ListRoles(ctx context.Context) ([]Role, error) {
 	var roles []Role
 	err := s.db.WithContext(ctx).Order("name").Find(&roles).Error

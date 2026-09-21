@@ -16,6 +16,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/order"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/security"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/transfer"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
 
@@ -36,7 +38,7 @@ func TestOpen_SQLite(t *testing.T) {
 	for _, m := range []any{
 		&account.Account{}, &transaction.Transaction{},
 		&coupon.Coupon{}, &voucher.Voucher{}, &voucher.PricingRuleSet{},
-		&order.Order{}, &billing.BillingRule{},
+		&order.Order{}, &billing.BillingRule{}, &transfer.VoucherTransfer{},
 	} {
 		if !db.Migrator().HasTable(m) {
 			t.Errorf("table missing: %T", m)
@@ -237,6 +239,18 @@ func TestBuildHandler_AuthTokenOwnerRead(t *testing.T) {
 
 	ownerAccount := createAccountWithAdmin(t, ts.URL, "auth-user-1")
 	otherAccount := createAccountWithAdmin(t, ts.URL, "auth-user-2")
+	tr := transfer.VoucherTransfer{
+		FromAccountID:       ownerAccount,
+		ToAccountID:         otherAccount,
+		SourceTransactionID: 1,
+		Amount:              100,
+		TaxRateBP:           0,
+		Status:              transfer.StatusPending,
+		IdempotencyKey:      "owner-read-transfer",
+	}
+	if err := db.Create(&tr).Error; err != nil {
+		t.Fatal(err)
+	}
 	ownerToken := signRS256TestToken(t, key, "auth-user-1")
 
 	assertStatus := func(name, method, path, token, body string, want int) {
@@ -267,7 +281,10 @@ func TestBuildHandler_AuthTokenOwnerRead(t *testing.T) {
 	assertStatus("owner account detail", http.MethodGet, "/accounts/"+ownerAccount, ownerToken, "", http.StatusOK)
 	assertStatus("owner transactions", http.MethodGet, "/accounts/"+ownerAccount+"/transactions", ownerToken, "", http.StatusOK)
 	assertStatus("owner statement", http.MethodGet, "/accounts/"+ownerAccount+"/statement", ownerToken, "", http.StatusOK)
+	assertStatus("owner transfer detail", http.MethodGet, "/transfers/"+strconv.FormatInt(tr.ID, 10), ownerToken, "", http.StatusOK)
+	assertStatus("owner transfer list", http.MethodGet, "/transfers?account_id="+ownerAccount, ownerToken, "", http.StatusOK)
 	assertStatus("other transactions", http.MethodGet, "/accounts/"+otherAccount+"/transactions", ownerToken, "", http.StatusForbidden)
+	assertStatus("other transfer list", http.MethodGet, "/transfers?account_id="+otherAccount, ownerToken, "", http.StatusForbidden)
 	assertStatus("owner write still forbidden", http.MethodPost, "/accounts/"+ownerAccount+"/recharges", ownerToken, `{"amount":{"amount":1,"currency":"CNY"},"voucher_no":"owner-write-denied"}`, http.StatusForbidden)
 }
 

@@ -154,6 +154,10 @@ func (s *stubVoucherRepo) CountByBatch(db *gorm.DB, batchNo string) (int64, erro
 	return 0, nil
 }
 
+func (s *stubVoucherRepo) ListByBatch(db *gorm.DB, batchNo string) ([]voucher.Voucher, error) {
+	return []voucher.Voucher{}, nil
+}
+
 func (s *stubVoucherRepo) Update(db *gorm.DB, v *voucher.Voucher) error {
 	return s.updateErr
 }
