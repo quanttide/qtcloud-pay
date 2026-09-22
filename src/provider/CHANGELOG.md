@@ -6,10 +6,12 @@
 - 新增 `internal/transfer` 代金券转赠模块：支持创建转赠购买流水、运营审核、审核通过后向受赠账户再发行代金券，并保留 `source_transaction_id` / `issued_voucher_id` 审计链。
 - 新增转赠 API：`POST /transfers`、`GET /transfers`、`GET /transfers/{id}`、`POST /transfers/{id}/review`，使用 `transfer:write` / `transfer:read` / `transfer:review` 权限。
 - `/reconcile/consistency` 增加转赠链路校验，覆盖购买流水、审核状态和再发行代金券一致性。
+- 新增拒绝转赠人工退款留痕：`POST /transfers/{id}/refund` 对 rejected 转赠加回购买人余额、写入退款留痕流水并关联 `refund_transaction_id`，权限为 `transfer:refund`。
 
 ### Changed
 - `voucher.Service` 增加事务内发券能力 `IssueWithDB`，供转赠审核复用现有发券幂等与账本记录，不改变既有发券 API 行为。
 - 属主读扩展到转赠记录：转赠双方可读取自己的转赠详情；按 `account_id` 过滤列表时账户属主可读取。
+- 转赠对账扩展拒绝退款链路：rejected 未退款视为正常待处理；已关联退款时校验退款流水存在且账户、金额、类型一致。
 
 ## [0.1.0-alpha.14] - 2026-09-14
 

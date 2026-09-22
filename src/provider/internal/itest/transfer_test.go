@@ -101,6 +101,29 @@ func TestVoucherTransferRejectAPI(t *testing.T) {
 	if vouchers := e.vouchers(to); len(vouchers) != 0 {
 		t.Fatalf("vouchers = %+v, want none", vouchers)
 	}
+	e.assertLedger(from, 2000)
+
+	var refunded map[string]any
+	e.post("/transfers/"+idString(created["id"])+"/refund", map[string]any{
+		"refunded_by": "赵子奕",
+		"note":        "人工退款完成",
+	}).mustStatus(e, http.StatusOK).json(e, &refunded)
+	if refunded["refund_transaction_id"] == nil || refunded["refunded_by"] != "赵子奕" {
+		t.Fatalf("refunded = %+v", refunded)
+	}
+	e.assertLedger(from, 3000)
+
+	var refundedAgain map[string]any
+	e.post("/transfers/"+idString(created["id"])+"/refund", map[string]any{
+		"refunded_by": "刘婧怡",
+	}).mustStatus(e, http.StatusOK).json(e, &refundedAgain)
+	if refundedAgain["refund_transaction_id"] != refunded["refund_transaction_id"] {
+		t.Fatalf("refunded again = %+v want same refund tx as %+v", refundedAgain, refunded)
+	}
+	e.assertLedger(from, 3000)
+	if got := e.countType(from, "recharge"); got != 2 {
+		t.Fatalf("recharge count = %d, want 2", got)
+	}
 }
 
 func idString(v any) string {

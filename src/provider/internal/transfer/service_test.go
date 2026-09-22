@@ -159,3 +159,109 @@ func TestRejectTransferDoesNotIssueVoucher(t *testing.T) {
 		t.Fatalf("vouchers = %+v, want none", vouchers)
 	}
 }
+
+func TestRefundRejectedTransfer(t *testing.T) {
+	e := setupEnv(t)
+	ctx := context.Background()
+	from, _ := e.accountSvc.Create(ctx, "cust_from")
+	to, _ := e.accountSvc.Create(ctx, "cust_to")
+	e.accountSvc.Recharge(ctx, from.ID, 5000, "refund-recharge", "")
+	tr := createRejectedTransfer(t, e, from.ID, to.ID, 1200, "refund-001")
+
+	refunded, err := e.transferSvc.Refund(ctx, tr.ID, &transfer.RefundRequest{
+		RefundedBy: "赵子奕", Note: "人工退款完成",
+	})
+	if err != nil {
+		t.Fatalf("Refund: %v", err)
+	}
+	if refunded.RefundTransactionID == nil || refunded.RefundedBy != "赵子奕" || refunded.RefundedAt == nil {
+		t.Fatalf("refunded = %+v", refunded)
+	}
+	acc, _ := e.accountSvc.Get(ctx, from.ID)
+	if acc.Balance != 5000 {
+		t.Fatalf("balance = %d, want 5000", acc.Balance)
+	}
+	txs, _ := e.txSvc.List(ctx, e.db, from.ID, 10, 0)
+	if len(txs) != 3 || txs[0].Type != transaction.TypeRecharge || txs[0].Amount != 1200 {
+		t.Fatalf("txs = %+v", txs)
+	}
+}
+
+func TestRefundRejectedTransferIdempotent(t *testing.T) {
+	e := setupEnv(t)
+	ctx := context.Background()
+	from, _ := e.accountSvc.Create(ctx, "cust_from")
+	to, _ := e.accountSvc.Create(ctx, "cust_to")
+	e.accountSvc.Recharge(ctx, from.ID, 5000, "refund-idem-recharge", "")
+	tr := createRejectedTransfer(t, e, from.ID, to.ID, 1000, "refund-idem")
+
+	first, err := e.transferSvc.Refund(ctx, tr.ID, &transfer.RefundRequest{RefundedBy: "赵子奕"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := e.transferSvc.Refund(ctx, tr.ID, &transfer.RefundRequest{RefundedBy: "刘婧怡"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.RefundTransactionID == nil || second.RefundTransactionID == nil || *first.RefundTransactionID != *second.RefundTransactionID {
+		t.Fatalf("first=%+v second=%+v", first, second)
+	}
+	acc, _ := e.accountSvc.Get(ctx, from.ID)
+	if acc.Balance != 5000 {
+		t.Fatalf("balance = %d, want 5000", acc.Balance)
+	}
+	txs, _ := e.txSvc.List(ctx, e.db, from.ID, 10, 0)
+	if len(txs) != 3 {
+		t.Fatalf("tx count = %d, want 3", len(txs))
+	}
+}
+
+func TestRefundTransferInvalidStatusAndRequest(t *testing.T) {
+	e := setupEnv(t)
+	ctx := context.Background()
+	from, _ := e.accountSvc.Create(ctx, "cust_from")
+	to, _ := e.accountSvc.Create(ctx, "cust_to")
+	e.accountSvc.Recharge(ctx, from.ID, 5000, "refund-invalid-recharge", "")
+	pending, err := e.transferSvc.Create(ctx, &transfer.CreateRequest{
+		FromAccountID: from.ID, ToAccountID: to.ID, Amount: 1000,
+		IdempotencyKey: "refund-invalid-pending",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.transferSvc.Refund(ctx, pending.ID, &transfer.RefundRequest{RefundedBy: "赵子奕"}); !errors.Is(err, transfer.ErrInvalidStatus) {
+		t.Fatalf("pending refund err = %v, want ErrInvalidStatus", err)
+	}
+	approved, err := e.transferSvc.Review(ctx, pending.ID, &transfer.ReviewRequest{
+		Decision: transfer.DecisionApproved, ReviewedBy: "赵子奕",
+	})
+	if err != nil || approved.Status != transfer.StatusApproved {
+		t.Fatalf("approved = %+v, %v", approved, err)
+	}
+	if _, err := e.transferSvc.Refund(ctx, approved.ID, &transfer.RefundRequest{RefundedBy: "赵子奕"}); !errors.Is(err, transfer.ErrInvalidStatus) {
+		t.Fatalf("approved refund err = %v, want ErrInvalidStatus", err)
+	}
+	rejected := createRejectedTransfer(t, e, from.ID, to.ID, 500, "refund-invalid-empty")
+	if _, err := e.transferSvc.Refund(ctx, rejected.ID, &transfer.RefundRequest{}); !errors.Is(err, transfer.ErrInvalidRequest) {
+		t.Fatalf("empty refunded_by err = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func createRejectedTransfer(t *testing.T, e *env, fromID, toID string, amount int64, key string) *transfer.VoucherTransfer {
+	t.Helper()
+	ctx := context.Background()
+	tr, err := e.transferSvc.Create(ctx, &transfer.CreateRequest{
+		FromAccountID: fromID, ToAccountID: toID, Amount: amount,
+		IdempotencyKey: key,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rejected, err := e.transferSvc.Review(ctx, tr.ID, &transfer.ReviewRequest{
+		Decision: transfer.DecisionRejected, ReviewedBy: "刘婧怡",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return rejected
+}

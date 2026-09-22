@@ -304,6 +304,9 @@ func (e *env) assertLedger(accountID string, wantBalance int64) {
 		if d["account_id"] == accountID {
 			e.t.Errorf("consistency discrepancy: %v", d)
 		}
+		if d["kind"] == "transfer" {
+			e.t.Errorf("transfer consistency discrepancy: %v", d)
+		}
 	}
 }
 

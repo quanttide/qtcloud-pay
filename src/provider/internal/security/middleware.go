@@ -189,6 +189,7 @@ func requiredPermission(method, path string) (string, bool) {
 
 var routeRules = []routeRule{
 	{method: http.MethodPost, prefix: "/transfers/", contains: "/review", permission: PermTransferReview},
+	{method: http.MethodPost, prefix: "/transfers/", contains: "/refund", permission: PermTransferRefund},
 	{method: http.MethodPost, exact: "/transfers", permission: PermTransferWrite},
 	{method: http.MethodGet, exact: "/transfers", permission: PermTransferRead},
 	{method: http.MethodGet, prefix: "/transfers/", permission: PermTransferRead},

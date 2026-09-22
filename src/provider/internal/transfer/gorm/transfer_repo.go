@@ -47,12 +47,15 @@ func (r *TransferRepo) GetByIdempotencyKey(db *gorm.DB, key string) (*transfer.V
 
 func (r *TransferRepo) Update(db *gorm.DB, t *transfer.VoucherTransfer) error {
 	return db.Model(t).Updates(map[string]any{
-		"status":            t.Status,
-		"reviewed_by":       t.ReviewedBy,
-		"reviewed_at":       t.ReviewedAt,
-		"issued_voucher_id": t.IssuedVoucherID,
-		"note":              t.Note,
-		"updated_at":        t.UpdatedAt,
+		"status":                t.Status,
+		"reviewed_by":           t.ReviewedBy,
+		"reviewed_at":           t.ReviewedAt,
+		"issued_voucher_id":     t.IssuedVoucherID,
+		"refund_transaction_id": t.RefundTransactionID,
+		"refunded_by":           t.RefundedBy,
+		"refunded_at":           t.RefundedAt,
+		"note":                  t.Note,
+		"updated_at":            t.UpdatedAt,
 	}).Error
 }
 

@@ -27,6 +27,9 @@ type VoucherTransfer struct {
 	ReviewedBy          string     `gorm:"size:128" json:"reviewed_by,omitempty"`
 	ReviewedAt          *time.Time `json:"reviewed_at,omitempty"`
 	IssuedVoucherID     *int64     `gorm:"index" json:"issued_voucher_id,omitempty"`
+	RefundTransactionID *int64     `gorm:"index" json:"refund_transaction_id,omitempty"`
+	RefundedBy          string     `gorm:"size:128" json:"refunded_by,omitempty"`
+	RefundedAt          *time.Time `json:"refunded_at,omitempty"`
 	Note                string     `gorm:"type:text" json:"note,omitempty"`
 	IdempotencyKey      string     `gorm:"uniqueIndex;size:128;not null" json:"idempotency_key"`
 	CreatedAt           time.Time  `json:"created_at"`

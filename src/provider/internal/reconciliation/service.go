@@ -93,9 +93,16 @@ func (s *Service) transferDiscrepancyReason(ctx context.Context, tr transfer.Vou
 		return "source transaction mismatch", nil
 	}
 	switch tr.Status {
-	case transfer.StatusPending, transfer.StatusRejected:
+	case transfer.StatusPending:
 		if tr.IssuedVoucherID != nil {
 			return "non-approved transfer has issued voucher", nil
+		}
+	case transfer.StatusRejected:
+		if tr.IssuedVoucherID != nil {
+			return "non-approved transfer has issued voucher", nil
+		}
+		if tr.RefundTransactionID != nil {
+			return s.transferRefundDiscrepancyReason(ctx, tr)
 		}
 	case transfer.StatusApproved:
 		if tr.IssuedVoucherID == nil {
@@ -113,6 +120,20 @@ func (s *Service) transferDiscrepancyReason(ctx context.Context, tr transfer.Vou
 		}
 	default:
 		return "invalid transfer status", nil
+	}
+	return "", nil
+}
+
+func (s *Service) transferRefundDiscrepancyReason(ctx context.Context, tr transfer.VoucherTransfer) (string, error) {
+	var refund transaction.Transaction
+	if err := s.db.WithContext(ctx).Where("id = ?", *tr.RefundTransactionID).First(&refund).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "refund transaction missing", nil
+		}
+		return "", err
+	}
+	if refund.AccountID != tr.FromAccountID || refund.Type != transaction.TypeRecharge || refund.Amount != tr.Amount {
+		return "refund transaction mismatch", nil
 	}
 	return "", nil
 }

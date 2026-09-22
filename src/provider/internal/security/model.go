@@ -16,6 +16,7 @@ const (
 	PermTransferRead   = "transfer:read"
 	PermTransferWrite  = "transfer:write"
 	PermTransferReview = "transfer:review"
+	PermTransferRefund = "transfer:refund"
 	PermOrderRead      = "order:read"
 	PermOrderWrite     = "order:write"
 	PermReconcileRead  = "reconcile:read"
@@ -67,7 +68,7 @@ func InitialRoles() []Role {
 func InitialRolePermissions() map[string][]string {
 	return map[string][]string{
 		RoleAdmin:    {PermissionAll},
-		RoleOperator: {PermAccountRead, PermAccountWrite, PermCouponWrite, PermVoucherWrite, PermTransferRead, PermTransferWrite, PermTransferReview, PermOrderRead, PermOrderWrite, PermReconcileRead, PermReconcileWrite, PermRuleRead, PermRuleWrite, PermChannelPay, PermChannelQuery, PermChannelRefund},
+		RoleOperator: {PermAccountRead, PermAccountWrite, PermCouponWrite, PermVoucherWrite, PermTransferRead, PermTransferWrite, PermTransferReview, PermTransferRefund, PermOrderRead, PermOrderWrite, PermReconcileRead, PermReconcileWrite, PermRuleRead, PermRuleWrite, PermChannelPay, PermChannelQuery, PermChannelRefund},
 		RoleViewer:   {PermAccountRead, PermTransferRead, PermOrderRead, PermReconcileRead, PermRuleRead, PermChannelQuery},
 	}
 }

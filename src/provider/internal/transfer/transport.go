@@ -29,6 +29,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("GET /transfers", h.handleList)
 	mux.HandleFunc("GET /transfers/{id}", h.handleGet)
 	mux.HandleFunc("POST /transfers/{id}/review", h.handleReview)
+	mux.HandleFunc("POST /transfers/{id}/refund", h.handleRefund)
 }
 
 func (h *Handler) handleCreate(w http.ResponseWriter, r *http.Request) {
@@ -115,6 +116,30 @@ func (h *Handler) handleReview(w http.ResponseWriter, r *http.Request) {
 	httpapi.WriteJSON(w, http.StatusOK, toDTO(t))
 }
 
+func (h *Handler) handleRefund(w http.ResponseWriter, r *http.Request) {
+	id, ok := parseID(r.PathValue("id"))
+	if !ok {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid transfer id")
+		return
+	}
+	var req struct {
+		RefundedBy string `json:"refunded_by"`
+		Note       string `json:"note"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		httpapi.WriteError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	t, err := h.svc.Refund(r.Context(), id, &RefundRequest{
+		RefundedBy: req.RefundedBy, Note: req.Note,
+	})
+	if err != nil {
+		httpapi.WriteServiceError(w, err, errMapper)
+		return
+	}
+	httpapi.WriteJSON(w, http.StatusOK, toDTO(t))
+}
+
 type transferDTO struct {
 	ID                  int64        `json:"id"`
 	FromAccountID       string       `json:"from_account_id"`
@@ -127,6 +152,9 @@ type transferDTO struct {
 	ReviewedBy          string       `json:"reviewed_by,omitempty"`
 	ReviewedAt          *time.Time   `json:"reviewed_at,omitempty"`
 	IssuedVoucherID     *int64       `json:"issued_voucher_id,omitempty"`
+	RefundTransactionID *int64       `json:"refund_transaction_id,omitempty"`
+	RefundedBy          string       `json:"refunded_by,omitempty"`
+	RefundedAt          *time.Time   `json:"refunded_at,omitempty"`
 	Note                string       `json:"note,omitempty"`
 	IdempotencyKey      string       `json:"idempotency_key"`
 	CreatedAt           time.Time    `json:"created_at"`
@@ -146,6 +174,9 @@ func toDTO(t *VoucherTransfer) transferDTO {
 		ReviewedBy:          t.ReviewedBy,
 		ReviewedAt:          t.ReviewedAt,
 		IssuedVoucherID:     t.IssuedVoucherID,
+		RefundTransactionID: t.RefundTransactionID,
+		RefundedBy:          t.RefundedBy,
+		RefundedAt:          t.RefundedAt,
 		Note:                t.Note,
 		IdempotencyKey:      t.IdempotencyKey,
 		CreatedAt:           t.CreatedAt,

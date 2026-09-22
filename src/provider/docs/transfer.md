@@ -25,6 +25,9 @@ type VoucherTransfer struct {
     ReviewedBy          string
     ReviewedAt          *time.Time
     IssuedVoucherID     *int64
+    RefundTransactionID *int64
+    RefundedBy          string
+    RefundedAt          *time.Time
     Note                string
     IdempotencyKey      string // 唯一
 }
@@ -40,6 +43,7 @@ type VoucherTransfer struct {
 | GET | `/transfers` | `transfer:read` | 列表，支持 `status` / `account_id` 过滤 |
 | GET | `/transfers/{id}` | `transfer:read` | 详情，含三方审计 ID |
 | POST | `/transfers/{id}/review` | `transfer:review` | 审核，`approved` 时再发行代金券 |
+| POST | `/transfers/{id}/refund` | `transfer:refund` | 对 rejected 转赠办理人工退款留痕 |
 
 创建请求：
 
@@ -63,10 +67,38 @@ type VoucherTransfer struct {
 }
 ```
 
+人工退款请求：
+
+```json
+{
+  "refunded_by": "赵子奕",
+  "note": "线下退款已处理"
+}
+```
+
+## 拒绝与退款
+
+`rejected` 表示交易作废：系统不向受赠人发券，购买人已扣金额应按原支付路径退回。退款由管理员人工操作，系统只负责留痕和账本一致性。
+
+人工退款流程：
+
+1. 审核人将转赠置为 `rejected`。
+2. 管理员完成线下退款或内部处理后，调用 `POST /transfers/{id}/refund`。
+3. 系统锁定购买人账户，将 `amount` 全额加回余额，追加一条正向入账流水，写入 `refund_transaction_id`、`refunded_by`、`refunded_at`。
+4. 已退款的转赠重复调用退款接口时返回既有记录，不重复加钱。
+
+购买流程提示文案（供前端/接入方展示）：
+
+> 审核未通过时，已支付金额将按原支付路径退回；您可修改后重新提交购买申请。
+
+重新提交无需复用原单：申请人使用新的 `idempotency_key` 创建新转赠记录；原记录保持 `rejected` 终态，退款留痕通过 `refund_transaction_id` 追溯。
+
 ## 幂等与失败语义
 
 - 创建幂等：`voucher_transfers.idempotency_key` 唯一；购买流水幂等键为 `transfer:{idempotency_key}`。
 - 审核幂等：`approved` / `rejected` 为终态，重复审核返回既有结果，不重复发行。
+- 退款幂等：`refund_transaction_id` 非空时重复请求返回既有记录，不重复加回余额；退款流水幂等键为 `transfer-refund:{transfer_id}`。
+- 退款限制：仅 `rejected` 可退款；`pending` / `approved` 退款返回 400。
 - 余额不足：返回 422，既不写消费流水，也不写转赠记录。
 - 冲正补救：历史交易只追加不修改；错误补救后续走反向交易或补偿记录，不改历史行。
 
@@ -77,3 +109,4 @@ type VoucherTransfer struct {
 - 转赠购买流水存在，且账户、类型、金额与转赠记录一致。
 - `pending` / `rejected` 不应有关联代金券。
 - `approved` 必须有关联代金券，且受赠账户与再发行金额一致。
+- `rejected` 且已关联退款时，退款流水必须存在，且账户为购买人、金额为 `amount`、类型为正向入账；`rejected` 但未退款是正常待处理状态，不作为差异。

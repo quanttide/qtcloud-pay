@@ -14,6 +14,8 @@ import (
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/reconciliation"
 	"github.com/quanttide/qtcloud-pay/src/provider/internal/transaction"
 	transactiongorm "github.com/quanttide/qtcloud-pay/src/provider/internal/transaction/gorm"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/transfer"
+	"github.com/quanttide/qtcloud-pay/src/provider/internal/voucher"
 )
 
 func setupEnv(t *testing.T) (*gorm.DB, *account.Service, *transaction.Service, *reconciliation.Service) {
@@ -81,6 +83,84 @@ func TestCheckConsistency_DBError(t *testing.T) {
 	}
 }
 
+func TestCheckConsistency_TransferChainDiscrepancies(t *testing.T) {
+	cases := []struct {
+		name string
+		mut  func(t *testing.T, db *gorm.DB, tr *transfer.VoucherTransfer, from *account.Account, to *account.Account, txSvc *transaction.Service, accSvc *account.Service)
+		want string
+	}{
+		{
+			name: "approved missing voucher",
+			mut: func(t *testing.T, db *gorm.DB, tr *transfer.VoucherTransfer, from *account.Account, to *account.Account, txSvc *transaction.Service, accSvc *account.Service) {
+				tr.Status = transfer.StatusApproved
+			},
+			want: "approved transfer missing issued voucher",
+		},
+		{
+			name: "rejected has voucher",
+			mut: func(t *testing.T, db *gorm.DB, tr *transfer.VoucherTransfer, from *account.Account, to *account.Account, txSvc *transaction.Service, accSvc *account.Service) {
+				v := voucher.Voucher{AccountID: to.ID, Amount: tr.Amount, Scope: voucher.ScopeAll, Status: voucher.StatusIssued}
+				if err := db.Create(&v).Error; err != nil {
+					t.Fatal(err)
+				}
+				tr.Status = transfer.StatusRejected
+				tr.IssuedVoucherID = &v.ID
+			},
+			want: "non-approved transfer has issued voucher",
+		},
+		{
+			name: "rejected refund missing",
+			mut: func(t *testing.T, db *gorm.DB, tr *transfer.VoucherTransfer, from *account.Account, to *account.Account, txSvc *transaction.Service, accSvc *account.Service) {
+				missing := int64(99999)
+				tr.Status = transfer.StatusRejected
+				tr.RefundTransactionID = &missing
+			},
+			want: "refund transaction missing",
+		},
+		{
+			name: "rejected refund mismatch",
+			mut: func(t *testing.T, db *gorm.DB, tr *transfer.VoucherTransfer, from *account.Account, to *account.Account, txSvc *transaction.Service, accSvc *account.Service) {
+				refundTx := transaction.Transaction{
+					AccountID: from.ID, Type: transaction.TypeRecharge, Amount: tr.Amount - 1,
+					BalanceAfter: tr.Amount - 1, IdempotencyKey: "refund-mismatch",
+				}
+				if err := txSvc.Append(context.Background(), db, &refundTx); err != nil {
+					t.Fatal(err)
+				}
+				from.Balance = tr.Amount - 1
+				if err := accSvc.Save(context.Background(), db, from); err != nil {
+					t.Fatal(err)
+				}
+				tr.Status = transfer.StatusRejected
+				tr.RefundTransactionID = &refundTx.ID
+			},
+			want: "refund transaction mismatch",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			db, accSvc, txSvc, reconSvc := setupTransferReconEnv(t)
+			from, to, sourceID := seedTransferSource(t, db, accSvc, txSvc, c.name)
+			tr := &transfer.VoucherTransfer{
+				FromAccountID: from.ID, ToAccountID: to.ID, SourceTransactionID: sourceID,
+				Amount: 100, TaxRateBP: 0, Status: transfer.StatusPending,
+				IdempotencyKey: "tr-" + c.name,
+			}
+			c.mut(t, db, tr, from, to, txSvc, accSvc)
+			if err := db.Create(tr).Error; err != nil {
+				t.Fatal(err)
+			}
+			discrepancies, err := reconSvc.CheckConsistency(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(discrepancies) != 1 || discrepancies[0].Kind != "transfer" || discrepancies[0].Reason != c.want {
+				t.Fatalf("discrepancies = %+v, want transfer reason %q", discrepancies, c.want)
+			}
+		})
+	}
+}
+
 func TestReconcileBankFile(t *testing.T) {
 	db, accSvc, _, reconSvc := setupEnv(t)
 	ctx := context.Background()
@@ -114,6 +194,48 @@ func TestReconcileBankFile(t *testing.T) {
 		t.Fatalf("report2 = %+v, %v", report2, err)
 	}
 	_ = db
+}
+
+func setupTransferReconEnv(t *testing.T) (*gorm.DB, *account.Service, *transaction.Service, *reconciliation.Service) {
+	t.Helper()
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{TranslateError: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := db.AutoMigrate(&account.Account{}, &transaction.Transaction{}, &transfer.VoucherTransfer{}, &voucher.Voucher{}); err != nil {
+		t.Fatal(err)
+	}
+	txSvc := transaction.NewService(transactiongorm.NewTransactionRepo())
+	accSvc := account.NewService(db, accountgorm.NewAccountRepo(), txSvc)
+	reconSvc := reconciliation.NewService(db, accSvc, txSvc)
+	return db, accSvc, txSvc, reconSvc
+}
+
+func seedTransferSource(t *testing.T, db *gorm.DB, accSvc *account.Service, txSvc *transaction.Service, key string) (*account.Account, *account.Account, int64) {
+	t.Helper()
+	ctx := context.Background()
+	from, _ := accSvc.Create(ctx, "from-"+key)
+	to, _ := accSvc.Create(ctx, "to-"+key)
+	if err := accSvc.Recharge(ctx, from.ID, 100, "recharge-"+key, ""); err != nil {
+		t.Fatal(err)
+	}
+	from.Balance = 0
+	if err := accSvc.Save(ctx, db, from); err != nil {
+		t.Fatal(err)
+	}
+	sourceTx := transaction.Transaction{
+		AccountID: from.ID, Type: transaction.TypeConsume, Amount: 100,
+		BalanceAfter: 0, IdempotencyKey: "consume-" + key,
+	}
+	if err := txSvc.Append(ctx, db, &sourceTx); err != nil {
+		t.Fatal(err)
+	}
+	return from, to, sourceTx.ID
 }
 
 func TestReconcileBankFile_InvalidCSV(t *testing.T) {
