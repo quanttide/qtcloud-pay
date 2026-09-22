@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.1.0-alpha.15] - 2026-09-22
+
 ### Added
 - 新增 `internal/transfer` 代金券转赠模块：支持创建转赠购买流水、运营审核、审核通过后向受赠账户再发行代金券，并保留 `source_transaction_id` / `issued_voucher_id` 审计链。
 - 新增转赠 API：`POST /transfers`、`GET /transfers`、`GET /transfers/{id}`、`POST /transfers/{id}/review`，使用 `transfer:write` / `transfer:read` / `transfer:review` 权限。
