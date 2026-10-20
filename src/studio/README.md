@@ -8,7 +8,7 @@
 
 - [doc/index.md](doc/index.md) — 模块划分设计（screens / widgets / models / services）
 - [服务端设计文档](../provider/docs/index.md) — 账本 API 模块划分
-- [工作台设计](../../../../data/roadmap/studio.md) — 页面与组件需求来源
+- [工作台设计](../../../../data/roadmap/platform/studio.md) — 页面与组件需求来源
 
 ## 开发
 

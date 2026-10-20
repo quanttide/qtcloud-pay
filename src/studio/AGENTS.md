@@ -15,7 +15,7 @@
 | `doc/index.md` | 模块划分设计（screens / widgets / models / services） |
 | `pubspec.yaml` | 依赖声明 |
 | 服务端设计 `../provider/docs/index.md` | 账本 API 契约 |
-| 域级设计 `../../../data/roadmap/studio.md`（主仓库） | 页面与组件需求来源 |
+| 域级设计 `../../../data/roadmap/platform/studio.md`（主仓库） | 页面与组件需求来源 |
 
 ## 纪律
 

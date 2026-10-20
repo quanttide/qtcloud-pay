@@ -21,7 +21,7 @@
 | 文档 | 位置 | 内容 |
 |------|------|------|
 | 服务端设计文档 | [src/provider/docs/index.md](../../provider/docs/index.md) | 账本 API 模块划分（联调契约的事实源） |
-| 工作台设计 | [data/roadmap/studio.md](../../../../../data/roadmap/studio.md) | 页面与组件需求来源（§六 Flutter 客户端） |
+| 工作台设计 | [data/roadmap/platform/studio.md](../../../../../data/roadmap/platform/studio.md) | 页面与组件需求来源（§六 Flutter 客户端） |
 
 ## 模块总览
 

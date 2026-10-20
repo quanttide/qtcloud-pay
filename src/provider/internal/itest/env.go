@@ -1,4 +1,4 @@
-// Package itest 账本核心集成测试（对齐 roadmap/tests.md）：
+// Package itest 账本核心集成测试（对齐 roadmap/platform/tests.md）：
 // SQLite :memory: 真库 + 全模块真实组装（internal/app.BuildMux）+ 真实 HTTP API 驱动。
 // 不 mock、不单独测纯函数——计费等逻辑的正确性由业务旅程的账本断言间接覆盖。
 //

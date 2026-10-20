@@ -14,7 +14,7 @@
 | `CONTRIBUTING.md` | 本 scope 贡献规范 |
 | `Cargo.toml` / `Makefile` | 依赖与构建测试入口 |
 | 服务端设计 `../provider/docs/index.md` | 账本 API 契约（M1–M4） |
-| 域级设计 `../../../data/roadmap/cli.md`（主仓库） | 需求来源 |
+| 域级设计 `../../../data/roadmap/platform/cli.md`（主仓库） | 需求来源 |
 
 ## 纪律
 

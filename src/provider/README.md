@@ -155,7 +155,7 @@ make docker-down  # 停止
 
 ## 测试
 
-三层测试，覆盖同一份测试设计（[tests.md](../../../../data/roadmap/tests.md) 的 TC-A/B/C/X）：
+三层测试，覆盖同一份测试设计（[tests.md](../../../../data/roadmap/platform/tests.md) 的 TC-A/B/C/X）：
 
 | 层 | 位置 | 说明 |
 |----|------|------|

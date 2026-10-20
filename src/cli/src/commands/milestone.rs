@@ -116,12 +116,12 @@ fn check(milestone: &str, note: Option<&str>) -> Result<(), CliError> {
 }
 
 /// 自动执行验收。当前支持 M1（创建账户 → 充值 → 重复登记幂等拦截 → 余额校验）；
-/// M2–M4 使用对应命令手动验收（见 data/roadmap/cli.md §八）。
+/// M2–M4 使用对应命令手动验收（见 data/roadmap/platform/cli.md §八）。
 async fn verify(ctx: &Ctx, milestone: &str) -> Result<(), CliError> {
     validate_milestone(milestone)?;
     if milestone != "M1" {
         return Err(CliError::Usage(format!(
-            "milestone verify 当前支持 M1 自动验收；{milestone} 使用对应命令手动验收（见 data/roadmap/cli.md §八）"
+            "milestone verify 当前支持 M1 自动验收；{milestone} 使用对应命令手动验收（见 data/roadmap/platform/cli.md §八）"
         )));
     }
     let mut failed = 0usize;
