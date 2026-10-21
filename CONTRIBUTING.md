@@ -6,7 +6,7 @@ qtcloud-pay 支付云服务平台（独立仓库，作为 `quanttide-pay` 的子
 
 | scope | 语言 | 说明 | 规范文档 |
 |-------|------|------|----------|
-| `src/provider` | Go | 支付云服务端：账本核心 + 支付渠道 | [README](src/provider/README.md)、[CONTRIBUTING](src/provider/CONTRIBUTING.md)、[ROADMAP](src/provider/ROADMAP.md)、[docs](src/provider/docs/index.md) |
+| `src/provider` | Go | 支付云服务端：账本核心 + 支付渠道 | [README](src/provider/README.md)、[CONTRIBUTING](src/provider/CONTRIBUTING.md)、[ROADMAP](src/provider/docs/dev-guide/roadmap.md)、[docs](src/provider/docs/index.md) |
 | `src/cli` | Rust | 账本核心命令行工作台 | [README](src/cli/README.md) |
 | `src/studio` | Flutter | 管理人员图形化工作台 | [README](src/studio/README.md)、[doc](src/studio/doc/index.md) |
 | `docs/` | Markdown | 领域文档（user-guide / dev-guide / api-reference） | — |

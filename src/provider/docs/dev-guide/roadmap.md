@@ -1,6 +1,6 @@
 # provider ROADMAP
 
-按版本组织，只列直接需要落实到代码的事项。权威路线图见[域级路线图](../../../../data/roadmap/platform/provider.md)。
+按版本组织，只列直接需要落实到代码的事项。权威路线图见[域级路线图](../../../../../../data/roadmap/platform/provider.md)。
 
 ## v0.1.0 账本核心（已交付 2026-08-03）
 

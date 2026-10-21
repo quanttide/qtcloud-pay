@@ -35,7 +35,7 @@ cd src/studio && flutter test
 
 - [CONTRIBUTING.md](CONTRIBUTING.md) — 贡献指南（提交规范、契约纪律、scope 开发命令）
 - [AGENTS.md](AGENTS.md) — 编码 agent 工作索引与纪律
-- `src/provider/` — [README](src/provider/README.md) / [CONTRIBUTING](src/provider/CONTRIBUTING.md) / [ROADMAP](src/provider/ROADMAP.md) / [设计文档](src/provider/docs/index.md)
+- `src/provider/` — [README](src/provider/README.md) / [CONTRIBUTING](src/provider/CONTRIBUTING.md) / [ROADMAP](src/provider/docs/dev-guide/roadmap.md) / [设计文档](src/provider/docs/index.md)
 - `docs/user-guide/` — 用户指南（[index](docs/user-guide/index.md)、journey、billing）
 - `docs/dev-guide/` — 开发指南（ci、iac）
 
