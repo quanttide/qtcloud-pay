@@ -58,7 +58,7 @@ db.AutoMigrate(
 
 说明：发券批次号按类型命名空间区分（优惠券与代金券各自自增，批次号可能相同），幂等由发券交易的全局唯一幂等键保证；`batch_no` 不做唯一约束，因为同一批次含多张券。
 
-幂等键命名规则：`{业务}:{业务号}` 前缀按业务类型隔离键空间（`recharge:`/`refund:`/`issue:{kind}:`/`settle:`），同一业务号在不同业务中互不冲突；键空间预留扩展，新业务接入时沿用。**键构造收敛为工具库 `pkg/idempotency` 契约**（`Key(biz, bizNo)` / `SettleRedeemKey`，业务号为空或含 `:` 拒绝——防键空间污染），provider 不再手拼键字符串。
+幂等键命名规则：`{业务}:{业务号}` 前缀按业务类型隔离键空间（`recharge:`/`refund:`/`issue:{kind}:`/`settle:`），同一业务号在不同业务中互不冲突；键空间预留扩展，新业务接入时沿用。**键构造收敛为标准库 `pkg/idempotency` 契约**（`Key(biz, bizNo)` / `SettleRedeemKey`，业务号为空或含 `:` 拒绝——防键空间污染），provider 不再手拼键字符串。
 
 **冲突回滚视为成功**：所有幂等写入（充值/退款/发券/结算）同构——事务内先查后插，唯一约束冲突时**整体回滚并返回成功**（`ErrDuplicateKey → nil`），调用方不再重试。这是「不丢、不重、可查」的落地语义：并发下后到者回滚自己的全部修改，让先到者生效。
 
@@ -69,7 +69,7 @@ db.AutoMigrate(
 
 ### 金额与折扣计算
 
-- 金额表示与 JSON 转换契约（全链路整数分、`pkg/money.Money`、严格校验）见工具库 [Money 使用指南](https://github.com/quanttide/quanttide-pay/blob/main/packages/quanttide-pay-toolkit/packages/go/docs/user-guide/money.md)；以下仅列 provider 特有约定
+- 金额表示与 JSON 转换契约（全链路整数分、`pkg/money.Money`、严格校验）见标准库 [Money 使用指南](https://github.com/quanttide/quanttide-pay/blob/main/packages/quanttide-pay-toolkit/packages/go/docs/user-guide/money.md)；以下仅列 provider 特有约定
 - 例外：`POST /reconcile/bank` 的银行流水 CSV 金额为分（`amount_cents`，财务工具格式）
 - **已知例外（v0.1.0 遗留，见 ROADMAP F2）**：`internal/channel` 渠道层仍用 float64 元（`PayRequest.Amount` 等）且存在 `int(x*100)` 截断精度缺陷——渠道层与账本层金额表示不一致，**新代码一律以分传输，勿照抄渠道层写法**
 - 折扣券按整数百分比：9 折 = rate 90 = 省 10%，`折扣 = 应付 × (100 − rate) / 100`（向下取整）

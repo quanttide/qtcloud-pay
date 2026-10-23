@@ -32,7 +32,7 @@
 | 对账与可查 | `internal/reconciliation` | 一致性校验、对公打款核对、账单导出 | M4 |
 | 支付渠道 | `internal/channel` | 微信 JSAPI / 支付宝网页支付（现有，保持独立） | M5 |
 | 安全权限 | `internal/security` | SECRET_KEY、自签服务端凭据、JWT 校验、角色权限表和中间件 | F1 |
-| 中间件 | 工具库 `pkg/middleware` | 请求日志（现有） | — |
+| 中间件 | 标准库 `pkg/middleware` | 请求日志（现有） | — |
 
 账本核心 = `account` + `transaction`（对应路线图中的 `ledger`）。`channel` 是后接的可替换渠道层，v0.2.0 接入时作为交易来源，**模型不变，变的只是交易来源**。
 

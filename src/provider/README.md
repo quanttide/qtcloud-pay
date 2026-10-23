@@ -54,7 +54,7 @@ provider/
 │   │   └── alipay/              ← 支付宝渠道实现
 │   │       ├── alipay.go
 │   │       └── alipay_test.go
-│   └── middleware/              ← 已迁移到工具库 pkg/middleware
+│   └── middleware/              ← 已迁移到标准库 pkg/middleware
 ├── docs/                        ← 设计文档（总览 + 各模块实现）
 ├── go.mod
 ├── go.sum

@@ -8,7 +8,7 @@
 
 ## 依赖
 
-- **纯计算已提炼至工具库**：`quanttide-pay-toolkit/packages/go/pkg/billing`（`Calculate`/类型/错误契约），本包经类型别名转发，`order` 调用方零改动
+- **纯计算已提炼至标准库**：`quanttide-pay-toolkit/packages/go/pkg/billing`（`Calculate`/类型/错误契约），本包经类型别名转发，`order` 调用方零改动
 - 规则存储（`BillingRule` gorm 模型）留在服务端
 
 ## 模型
@@ -24,7 +24,7 @@ type BillingRule struct {
 
 ## 核心流程
 
-### 结算计算（纯函数，见工具库 `pkg/billing`）
+### 结算计算（纯函数，见标准库 `pkg/billing`）
 
 ```go
 type Deduction struct {

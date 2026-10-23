@@ -4,7 +4,7 @@
 
 ## 本 scope 是什么
 
-qtcloud-pay 支付云服务端（Go）：账本核心（账户/交易/优惠券/代金券/计费/订单/对账）+ 支付渠道（微信/支付宝）。`internal/` 下按业务域分模块（scope），纯逻辑契约已提炼至工具库，本模块只留实体、gorm 存储、事务编排与渠道适配。
+qtcloud-pay 支付云服务端（Go）：账本核心（账户/交易/优惠券/代金券/计费/订单/对账）+ 支付渠道（微信/支付宝）。`internal/` 下按业务域分模块（scope），纯逻辑契约已提炼至标准库，本模块只留实体、gorm 存储、事务编排与渠道适配。
 
 ## 关键文件（按优先级阅读）
 
@@ -19,14 +19,14 @@ qtcloud-pay 支付云服务端（Go）：账本核心（账户/交易/优惠券/
 | `Makefile` | `make build/test/vet/lint/run/clean` | 构建测试时 |
 | `CHANGELOG.md` | 版本变更记录 | 提交前核对 |
 | `cmd/server/main.go` | 依赖组装、方言选择、AutoMigrate、渠道装配 | 新增模块/渠道时 |
-| 工具库 `packages/go/pkg/*` | 契约实现（status/idempotency/billing/ledger/money/httpapi/middleware） | 涉及契约语义时 |
+| 标准库 `packages/go/pkg/*` | 契约实现（status/idempotency/billing/ledger/money/httpapi/middleware） | 涉及契约语义时 |
 
 ## 契约纪律（最高优先级）
 
-1. **禁止端侧发明语义**：状态（`pkg/status`）、幂等键（`pkg/idempotency`）、计费（`pkg/billing`）、交易类型（`pkg/ledger`）一律引用工具库契约；本模块不定义等价常量/算法
+1. **禁止端侧发明语义**：状态（`pkg/status`）、幂等键（`pkg/idempotency`）、计费（`pkg/billing`）、交易类型（`pkg/ledger`）一律引用标准库契约；本模块不定义等价常量/算法
 2. **未知码必须报错**：渠道原始码解析遇未知值返回错误，不用 UNKNOWN 兜底
 3. **金额整数分**：全链路 int64 分，禁止浮点；元/分转换只在 transport 边界（`money.Cents`）
-4. **纯逻辑进工具库**：发现可提炼主干，先回工具库按 fixtures 流程（`tests/fixtures/` 先行）实施，再回来改引用
+4. **纯逻辑进标准库**：发现可提炼主干，先回标准库按 fixtures 流程（`tests/fixtures/` 先行）实施，再回来改引用
 
 ## 核心设计约束（docs/conventions.md 摘要）
 
