@@ -178,10 +178,9 @@ func (h *Handler) handleUpsertPricingRuleSet(w http.ResponseWriter, r *http.Requ
 	httpapi.WriteJSON(w, http.StatusOK, toPricingRuleSetDTO(ruleSet))
 }
 
+// handleGetPricingRuleSet 查询计价规则集。只读放行：生产由权限中间件按 rule:read
+// 校验（viewer 可看发放规则），PUT 录入仍需 X-Admin-Token。
 func (h *Handler) handleGetPricingRuleSet(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(w, r) {
-		return
-	}
 	id := strings.TrimSpace(r.PathValue("id"))
 	if id == "" {
 		httpapi.WriteError(w, http.StatusBadRequest, "missing rule set id")
@@ -195,10 +194,8 @@ func (h *Handler) handleGetPricingRuleSet(w http.ResponseWriter, r *http.Request
 	httpapi.WriteJSON(w, http.StatusOK, toPricingRuleSetDTO(ruleSet))
 }
 
+// handleListPricingRuleSets 列表计价规则集。只读放行同 handleGetPricingRuleSet。
 func (h *Handler) handleListPricingRuleSets(w http.ResponseWriter, r *http.Request) {
-	if !h.requireAdmin(w, r) {
-		return
-	}
 	list, err := h.svc.ListPricingRuleSets(r.Context())
 	if err != nil {
 		httpapi.WriteServiceError(w, err, errMapper)

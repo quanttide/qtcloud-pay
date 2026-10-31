@@ -240,17 +240,40 @@ func TestTransport_PricingRuleSet(t *testing.T) {
 func TestTransport_PricingRuleSet_ForbiddenAndInvalid(t *testing.T) {
 	ts, _ := newAdminTestServer(t)
 
+	// 只读 GET 不再要求 X-Admin-Token（生产由中间件 rule:read 把关，viewer 可看）。
 	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/admin/voucher-pricing-rules", nil)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if resp.StatusCode != http.StatusForbidden {
-		t.Fatalf("unauthorized status = %d, want 403", resp.StatusCode)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("unauthorized read status = %d, want 200", resp.StatusCode)
+	}
+
+	// 无 token 查不存在的规则集返回 404（非 403），证明只读 GET 已过鉴权。
+	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/admin/voucher-pricing-rules/qtclass-voucher-pricing", nil)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("unauthorized get status = %d, want 404", resp.StatusCode)
 	}
 
 	body := []byte(`{"payload":{"issuance":{"channels":[{"name":"x","trigger":"x","voucher":{"amount_cents":100,"scope":"bad","expires_at_rule":"x"},"count_per_event":1}]},"redemption":{"scenarios":[{"scenario":"s","name":"n","pricing_model":"per_count_flat","quotas":[{"application_type":"a","name":"n","free_limit":0,"exceed_price_cents":100}]}]},"billing_semantics":{"voucher_is_money":true}}}`)
+	req, _ = http.NewRequest(http.MethodPut, ts.URL+"/admin/voucher-pricing-rules/qtclass", bytes.NewReader(body))
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("unauthorized put status = %d, want 403", resp.StatusCode)
+	}
+
+	// 带 token 的非法 payload 仍报 400（测校验而非权限）。
 	req, _ = http.NewRequest(http.MethodPut, ts.URL+"/admin/voucher-pricing-rules/qtclass", bytes.NewReader(body))
 	req.Header.Set("X-Admin-Token", "secret")
 	resp, err = http.DefaultClient.Do(req)
@@ -263,7 +286,6 @@ func TestTransport_PricingRuleSet_ForbiddenAndInvalid(t *testing.T) {
 	}
 
 	req, _ = http.NewRequest(http.MethodGet, ts.URL+"/admin/voucher-pricing-rules/missing", nil)
-	req.Header.Set("X-Admin-Token", "secret")
 	resp, err = http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)

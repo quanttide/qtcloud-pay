@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../models/account.dart';
 import '../models/coupon.dart';
 import '../models/order.dart';
+import '../models/pricing_rule_set.dart';
 import '../models/reconciliation.dart';
 import '../models/transaction.dart';
 import '../models/voucher.dart';
@@ -232,6 +233,14 @@ class PayApi {
     final data = await _request('GET', '/accounts/$accountId/vouchers');
     return (data['vouchers'] as List? ?? [])
         .map((e) => Voucher.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// GET /admin/voucher-pricing-rules 代金券计价规则集（只读，rule:read）。
+  Future<List<PricingRuleSet>> listVoucherPricingRules() async {
+    final data = await _request('GET', '/admin/voucher-pricing-rules');
+    return (data['rule_sets'] as List? ?? [])
+        .map((e) => PricingRuleSet.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 

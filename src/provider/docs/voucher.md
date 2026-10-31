@@ -67,8 +67,8 @@ type PricingRuleSet struct {
 | POST | `/accounts/{id}/vouchers` | 发放（批量 + 幂等） |
 | GET | `/accounts/{id}/vouchers` | 查询 |
 | PUT | `/admin/voucher-pricing-rules/{id}` | 幂等录入/更新计价规则集（需 `X-Admin-Token`） |
-| GET | `/admin/voucher-pricing-rules/{id}` | 查询计价规则集（需 `X-Admin-Token`） |
-| GET | `/admin/voucher-pricing-rules` | 查询规则集列表（需 `X-Admin-Token`） |
+| GET | `/admin/voucher-pricing-rules/{id}` | 查询计价规则集（只读：中间件按 `rule:read` 把关，viewer 可看） |
+| GET | `/admin/voucher-pricing-rules` | 查询规则集列表（只读：同上） |
 
 规则集校验：
 

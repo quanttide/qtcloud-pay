@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/coupon.dart';
+import '../models/pricing_rule_set.dart';
 import '../models/voucher.dart';
 import '../services/pay_api.dart';
 import '../services/pay_store.dart';
@@ -10,7 +11,7 @@ import '../widgets/amount_field.dart';
 import '../widgets/idempotency_field.dart';
 import '../widgets/status_chip.dart';
 
-/// 发券页：优惠券/代金券发放与查询（Tabs）。
+/// 发券页：优惠券/代金券发放与查询、发放规则只读（Tabs）。
 class CouponScreen extends StatefulWidget {
   const CouponScreen({super.key});
 
@@ -22,12 +23,20 @@ class _CouponScreenState extends State<CouponScreen> {
   @override
   Widget build(BuildContext context) {
     return const DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(
         children: [
-          TabBar(tabs: [Tab(text: '优惠券'), Tab(text: '代金券')]),
+          TabBar(tabs: [
+            Tab(text: '优惠券'),
+            Tab(text: '代金券'),
+            Tab(text: '发放规则'),
+          ]),
           Expanded(
-            child: TabBarView(children: [_CouponTab(), _VoucherTab()]),
+            child: TabBarView(children: [
+              _CouponTab(),
+              _VoucherTab(),
+              _RulesTab(),
+            ]),
           ),
         ],
       ),
@@ -534,4 +543,162 @@ class _VoucherTabState extends State<_VoucherTab> {
         'product' => '指定商品',
         _ => scope,
       };
+}
+
+// ---------- 发放规则（只读） ----------
+
+/// 发放规则页签：代金券计价规则集只读展示（发放渠道、触发条件、面额）。
+///
+/// 监管视角入口：只展示「规则允许怎么发」，不提供任何发放操作。
+class _RulesTab extends StatefulWidget {
+  const _RulesTab();
+
+  @override
+  State<_RulesTab> createState() => _RulesTabState();
+}
+
+class _RulesTabState extends State<_RulesTab>
+    with AutomaticKeepAliveClientMixin {
+  List<PricingRuleSet>? _ruleSets;
+  String? _error;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _ruleSets = null;
+      _error = null;
+    });
+    try {
+      final store = context.read<PayStore>();
+      _ruleSets = await store.api.listVoucherPricingRules();
+    } on ApiException catch (e) {
+      _error = e.message;
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_error != null) {
+      return Center(
+        child: ListTile(
+          leading: const Icon(Icons.error_outline),
+          title: Text('发放规则加载失败：$_error'),
+          trailing: TextButton(onPressed: _load, child: const Text('重试')),
+        ),
+      );
+    }
+    if (_ruleSets == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_ruleSets!.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Text('暂无发放规则集（管理员可通过 PUT /admin/voucher-pricing-rules 录入）'),
+        ),
+      );
+    }
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        for (final rs in _ruleSets!) ...[
+          _RuleSetCard(ruleSet: rs),
+          const SizedBox(height: 16),
+        ],
+      ],
+    );
+  }
+}
+
+class _RuleSetCard extends StatelessWidget {
+  const _RuleSetCard({required this.ruleSet});
+
+  final PricingRuleSet ruleSet;
+
+  @override
+  Widget build(BuildContext context) {
+    final channels = ruleSet.issuanceChannels
+        .map(IssuanceChannel.fromJson)
+        .toList();
+    final text = Theme.of(context).textTheme;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(ruleSet.id, style: text.titleMedium),
+                ),
+                if (ruleSet.version != null)
+                  Chip(
+                    label: Text('版本 ${ruleSet.version}'),
+                    visualDensity: VisualDensity.compact,
+                  ),
+              ],
+            ),
+            if (ruleSet.source != null) ...[
+              const SizedBox(height: 4),
+              Text('事实来源：${ruleSet.source}',
+                  style: text.bodySmall?.copyWith(color: Colors.grey.shade600)),
+            ],
+            const SizedBox(height: 12),
+            Text('发放渠道', style: text.titleSmall),
+            const SizedBox(height: 4),
+            if (channels.isEmpty)
+              const Text('（规则集中无发放渠道）')
+            else
+              for (final ch in channels) _ChannelTile(channel: ch),
+            if (ruleSet.bonusDenominationRule != null) ...[
+              const SizedBox(height: 8),
+              Text('面额规则：${ruleSet.bonusDenominationRule}',
+                  style: text.bodySmall),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              '更新于 ${ruleSet.updatedAt.toLocal().toString().split(' ').first}',
+              style: text.bodySmall?.copyWith(color: Colors.grey.shade500),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelTile extends StatelessWidget {
+  const _ChannelTile({required this.channel});
+
+  final IssuanceChannel channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitles = <String>[
+      if (channel.trigger.isNotEmpty) '触发：${channel.trigger}',
+      '面额：${channel.amountLabel}',
+      if (channel.scope.isNotEmpty) '范围：${channel.scope}',
+      if (channel.bonusType != null) '类型：追加奖励（${channel.bonusType}）',
+      if (channel.countPerEvent != null) '每次事件：${channel.countPerEvent}',
+      if (channel.entry != null) '依据：${channel.entry}',
+    ];
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: const Icon(Icons.card_giftcard_outlined),
+      title: Text(channel.name),
+      subtitle: Text(subtitles.join('\n')),
+    );
+  }
 }

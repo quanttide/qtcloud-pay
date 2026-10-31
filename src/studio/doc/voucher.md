@@ -1,6 +1,6 @@
 # voucher 代金券（M2）
 
-客户端位置：`lib/screens/coupon_screen.dart`（发券页）、`lib/models/voucher.dart`
+客户端位置：`lib/screens/coupon_screen.dart`（发券页）、`lib/models/voucher.dart`、`lib/models/pricing_rule_set.dart`（发放规则只读）
 
 服务端模块：[internal/voucher](../../provider/internal/voucher)（对照 [docs/voucher.md](../../provider/docs/voucher.md)）
 
@@ -13,6 +13,7 @@
 | 页面/组件 | 说明 |
 |-----------|------|
 | `coupon_screen.dart` | 发券页「代金券」页签：面值（AmountField）+ scope + 有效期 + 批次号 + 数量 |
+| `coupon_screen.dart` | 发券页「发放规则」页签（只读）：调 `GET /admin/voucher-pricing-rules` 展示发放渠道、触发条件、面额与面额规则，供监管角色（viewer）查看，无任何发放操作 |
 | `StatusChip` | 券状态标签：`issued` / `used` / `expired` |
 | `IdempotencyField` | 发放批次号（必填） |
 
