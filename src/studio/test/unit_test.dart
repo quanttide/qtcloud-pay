@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qtcloud_pay_studio/models/pricing_rule_set.dart';
+import 'package:qtcloud_pay_studio/models/rule_draft.dart';
 import 'package:qtcloud_pay_studio/models/transaction.dart';
+import 'package:qtcloud_pay_studio/services/local_draft_store.dart';
 import 'package:qtcloud_pay_studio/services/pay_api.dart';
 import 'package:qtcloud_pay_studio/widgets/amount_field.dart';
 import 'package:qtcloud_pay_studio/widgets/money_text.dart';
@@ -71,6 +75,7 @@ void main() {
   });
 
   pricingRuleSetTests();
+  ruleDraftTests();
 }
 
 void pricingRuleSetTests() {
@@ -143,6 +148,131 @@ void pricingRuleSetTests() {
       });
       expect(rs.issuanceChannels, isEmpty);
       expect(rs.bonusDenominationRule, isNull);
+    });
+  });
+}
+
+void ruleDraftTests() {
+  group('RuleDraft（发放规则草稿）', () {
+    RuleDraftChannel fixedChannel() => RuleDraftChannel(
+          name: '课堂实训任务',
+          trigger: '实训任务验收通过',
+          amountCents: 10000,
+          scope: 'all',
+          countPerEvent: 1,
+          entry: '任命公告',
+        );
+
+    test('普通渠道校验通过', () {
+      final draft = RuleDraft(id: 'qtclass')..channels.add(fixedChannel());
+      expect(draft.validate(), isEmpty);
+    });
+
+    test('缺名称与触发条件报错', () {
+      final draft = RuleDraft(id: 'qtclass')
+        ..channels.add(RuleDraftChannel(amountCents: 100));
+      final problems = draft.validate();
+      expect(problems, contains(contains('缺名称')));
+      expect(problems, contains(contains('缺触发条件')));
+    });
+
+    test('面额为 0 报错', () {
+      final draft = RuleDraft(id: 'qtclass')..channels.add(fixedChannel()..amountCents = 0);
+      expect(draft.validate(), contains(contains('固定面额需为正数')));
+    });
+
+    test('追加奖励渠道必须填面额规则且不带固定面额', () {
+      final draft = RuleDraft(id: 'qtclass')
+        ..channels.add(RuleDraftChannel(
+          name: '追加奖励·首次完成',
+          trigger: '首个完成',
+          bonusType: 'first_completion',
+          countPerEvent: '多张券组合',
+        ));
+      final problems = draft.validate();
+      expect(problems, contains(contains('需填写面额规则')));
+      expect(problems, contains(contains('必须填写面额规则')));
+
+      draft.channels[0].amountRule = '等额追加';
+      draft.bonusDenominationRule = '仅 100/500 元面额';
+      expect(draft.validate(), isEmpty);
+    });
+
+    test('追加奖励渠道写固定面额报错', () {
+      final ch = RuleDraftChannel(
+        name: 'n',
+        trigger: 't',
+        amountCents: 100,
+        bonusType: 'group_interaction',
+        amountRule: 'r',
+      );
+      expect(ch.validate('渠道'), contains(contains('不得同时写固定面额')));
+    });
+
+    test('导出 payload 对齐服务端形状', () {
+      final draft = RuleDraft(id: 'qtclass', source: 'journal', version: '2026-09-02')
+        ..channels.add(fixedChannel())
+        ..channels.add(RuleDraftChannel(
+          name: '追加奖励·产出评定',
+          trigger: '按产出评定',
+          bonusType: 'output_assessment',
+          amountRule: '仅限 100 元或 500 元面额',
+          countPerEvent: '多张券组合',
+        ))
+        ..bonusDenominationRule = '仅使用 100 元、500 元两种面额';
+      final payload = draft.toPayload();
+      final channels = (payload['issuance'] as Map)['channels'] as List;
+      expect((channels[0] as Map)['voucher']['amount_cents'], 10000);
+      expect((channels[1] as Map)['bonus_type'], 'output_assessment');
+      expect((channels[1] as Map)['voucher']['amount_rule'], '仅限 100 元或 500 元面额');
+      expect((channels[1] as Map)['voucher']['amount_cents'], isNull);
+      expect(
+        (payload['billing_semantics'] as Map)['voucher_is_money'],
+        isTrue,
+      );
+      final body = draft.toPutBody();
+      expect(body['source'], 'journal');
+    });
+
+    test('JSON 往返保持内容', () {
+      final draft = RuleDraft(id: 'qtclass', source: 's', version: 'v')
+        ..channels.add(fixedChannel())
+        ..bonusDenominationRule = 'r';
+      final back = RuleDraft.fromJson(draft.toJson());
+      expect(back.id, 'qtclass');
+      expect(back.channels.single.amountCents, 10000);
+      expect(back.channels.single.entry, '任命公告');
+      expect(back.bonusDenominationRule, 'r');
+    });
+  });
+
+  group('LocalDraftStore（本地草稿仓）', () {
+    test('保存后可读回', () {
+      final dir = Directory.systemTemp.createTempSync('draft-store-test');
+      final store = LocalDraftStore(filePath: '${dir.path}/drafts.json');
+      final draft = RuleDraft(id: 'qtclass')
+        ..channels.add(RuleDraftChannel(
+            name: 'n', trigger: 't', amountCents: 100));
+      expect(store.save([draft]), isTrue);
+      final loaded = store.load();
+      expect(loaded.single.id, 'qtclass');
+      expect(loaded.single.channels.single.amountCents, 100);
+      dir.deleteSync(recursive: true);
+    });
+
+    test('文件不存在返回空列表', () {
+      final dir = Directory.systemTemp.createTempSync('draft-store-test');
+      final store = LocalDraftStore(filePath: '${dir.path}/missing.json');
+      expect(store.load(), isEmpty);
+      dir.deleteSync(recursive: true);
+    });
+
+    test('文件损坏返回空列表而不抛', () {
+      final dir = Directory.systemTemp.createTempSync('draft-store-test');
+      final file = File('${dir.path}/broken.json')..writeAsStringSync('{oops');
+      final store = LocalDraftStore(filePath: file.path);
+      expect(store.load(), isEmpty);
+      dir.deleteSync(recursive: true);
     });
   });
 }

@@ -11,6 +11,7 @@
 | [transaction](transaction.md) 交易账本 | 流水展示、带符号金额 | M1 |
 | [coupon](coupon.md) 优惠券 | 折扣券/满减券发放与查询 | M2 |
 | [voucher](voucher.md) 代金券 | 面值券发放与查询 | M2 |
+| [rule_design](rule_design.md) 规则设计 | 发放规则离线草稿（本地存储，不联网） | — |
 | [billing](billing.md) 计费规则 | 抵扣顺序展示、结算明细模型 | M3 |
 | [order](order.md) 订单与结算 | 下单、结算明细 | M3 |
 | [reconciliation](reconciliation.md) 对账与可查 | 一致性校验、对公核对、账单 | M4 |
@@ -36,6 +37,9 @@
 | 页面层 | 订单结算页 | `lib/screens/order_screen.dart` | 下单、结算明细 | M3 |
 | 页面层 | 参数配置页 | `lib/screens/settings_screen.dart` | 抵扣顺序、券模板、变更登记 | M3 |
 | 页面层 | 对账页 | `lib/screens/reconcile_screen.dart` | 余额校验、CSV 比对 | M4 |
+| 页面层 | 规则设计页 | `lib/screens/rule_design_screen.dart` | 发放规则离线草稿、校验预检、导出 PUT 请求体 | — |
+| 模型层 | 规则草稿 | `lib/models/rule_draft.dart` | RuleDraft / RuleDraftChannel，校验对齐服务端发放段 | — |
+| 服务层 | 本地草稿仓 | `lib/services/local_draft_store.dart` | 草稿 JSON 文件读写（离线） | — |
 | 组件层 | 复用组件 | `lib/widgets/` | 金额/状态/表单/列表等通用组件（见各模块文档） | 各里程碑 |
 | 模型层 | 领域模型 | `lib/models/` | Account / Transaction / Coupon / Voucher / Order / BillingRule | 各里程碑 |
 | 服务层 | API 客户端 | `lib/services/pay_api.dart` | 封装全部账本端点、错误映射 | 各里程碑 |

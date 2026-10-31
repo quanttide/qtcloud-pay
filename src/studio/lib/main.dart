@@ -7,8 +7,10 @@ import 'screens/coupon_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/order_screen.dart';
 import 'screens/recharge_screen.dart';
+import 'screens/rule_design_screen.dart';
 import 'screens/reconcile_screen.dart';
 import 'screens/settings_screen.dart';
+import 'services/local_draft_store.dart';
 import 'services/pay_api.dart';
 import 'services/pay_store.dart';
 
@@ -18,10 +20,13 @@ void main() {
 
 /// 量潮支付工作台客户端（qtcloud_pay_studio）。
 class PayStudioApp extends StatelessWidget {
-  const PayStudioApp({super.key, this.api});
+  const PayStudioApp({super.key, this.api, this.ruleDesignStore});
 
   /// 可注入的 API 客户端（测试用）；默认连接 http://localhost:8080。
   final PayApi? api;
+
+  /// 可注入的本地草稿仓（测试用）；默认存 ~/.qtcloud-pay-studio/rule_drafts.json。
+  final LocalDraftStore? ruleDesignStore;
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +43,7 @@ class PayStudioApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
           useMaterial3: true,
         ),
-        home: const HomeShell(),
+        home: HomeShell(ruleDesignStore: ruleDesignStore),
       ),
     );
   }
@@ -46,7 +51,9 @@ class PayStudioApp extends StatelessWidget {
 
 /// 应用主框架：左侧导航 + 内容区。
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+  const HomeShell({super.key, this.ruleDesignStore});
+
+  final LocalDraftStore? ruleDesignStore;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -64,6 +71,7 @@ class _HomeShellState extends State<HomeShell> {
     '订单结算',
     '对账',
     '参数配置',
+    '规则设计',
   ];
 
   void _navigate(int index) {
@@ -127,6 +135,11 @@ class _HomeShellState extends State<HomeShell> {
                 selectedIcon: Icon(Icons.settings),
                 label: Text('参数配置'),
               ),
+              NavigationRailDestination(
+                icon: Icon(Icons.edit_note_outlined),
+                selectedIcon: Icon(Icons.edit_note),
+                label: Text('规则设计'),
+              ),
             ],
           ),
           const VerticalDivider(width: 1),
@@ -156,6 +169,8 @@ class _HomeShellState extends State<HomeShell> {
         return ReconcileScreen(onOpenAccount: _openAccount);
       case 6:
         return const SettingsScreen();
+      case 7:
+        return RuleDesignScreen(store: widget.ruleDesignStore);
       default:
         return const SizedBox.shrink();
     }

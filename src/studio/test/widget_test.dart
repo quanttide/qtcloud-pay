@@ -1,10 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:qtcloud_pay_studio/main.dart';
+import 'package:qtcloud_pay_studio/services/local_draft_store.dart';
 import 'package:qtcloud_pay_studio/services/pay_api.dart';
 
 /// 假客户端：按路径返回固定 JSON。
@@ -191,5 +193,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('已创建账户 acc_001'), findsOneWidget);
+  });
+
+  ruleDesignTests();
+}
+
+void ruleDesignTests() {
+  testWidgets('规则设计页：新建草稿并完成一个合法渠道', (tester) async {
+    final dir = Directory.systemTemp.createTempSync('rule-design-test');
+    final store = LocalDraftStore(filePath: '${dir.path}/drafts.json');
+    addTearDown(() => dir.deleteSync(recursive: true));
+
+    await tester.pumpWidget(PayStudioApp(
+      api: PayApi(client: _mockClient()),
+      ruleDesignStore: store,
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('规则设计').first);
+    await tester.pumpAndSettle();
+    expect(find.text('还没有草稿'), findsOneWidget);
+
+    // 新建草稿。
+    await tester.tap(find.text('新建草稿'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.widgetWithText(TextField, '规则集 ID（如 qtclass-voucher-pricing）'),
+        'qtclass-voucher-pricing');
+    await tester.tap(find.text('创建'));
+    await tester.pumpAndSettle();
+    expect(find.text('qtclass-voucher-pricing'), findsWidgets);
+
+    // 预置空渠道触发校验问题。
+    expect(find.textContaining('缺名称'), findsOneWidget);
+
+    // 编辑渠道填成合法值。
+    await tester.tap(find.text('（未命名渠道）'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+        find.widgetWithText(TextField, '渠道名称（如 课堂实训任务）'), '课堂实训任务');
+    await tester.enterText(
+        find.widgetWithText(TextField, '触发条件（如 实训任务验收通过）'), '实训任务验收通过');
+    await tester.enterText(find.widgetWithText(TextField, '面值（元，如 100）'), '100');
+    await tester.tap(find.text('保存'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('发放段校验通过'), findsOneWidget);
+    expect(find.textContaining('课堂实训任务'), findsOneWidget);
+
+    // 本地文件已落盘。
+    final persisted = store.load();
+    expect(persisted.single.id, 'qtclass-voucher-pricing');
+    expect(persisted.single.channels.single.amountCents, 10000);
   });
 }
