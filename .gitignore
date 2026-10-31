@@ -30,3 +30,8 @@ Thumbs.db
 .venv/
 venv/
 env/
+
+# Flutter（src/lite）
+*.iml
+.dart_tool/
+src/lite/build/

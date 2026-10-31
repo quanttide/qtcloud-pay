@@ -13,6 +13,7 @@ qtcloud-pay 是量潮支付领域的云服务平台，提供支付网关、账�
 | `src/provider/` | 支付云服务端（Go）：账本核心（M1–M4）+ 支付渠道（微信/支付宝），含自身 README/CONTRIBUTING/ROADMAP |
 | `src/cli/` | 账本核心命令行工作台（Rust，命令 `qtcloud-pay`） |
 | `src/studio/` | 管理人员图形化工作台（Flutter 桌面应用，Windows/macOS） |
+| `src/lite/` | 用户端自服务客户端（Flutter）：用户查看自己的钱包余额与流水（量潮钱包 lite） |
 | `docs/` | 领域文档（`user-guide/`、`dev-guide/`、`api-reference/`） |
 | `tests/` | 端到端测试目录（当前无 Python 测试文件，pytest 配置为遗留，勿执行 `uv run pytest`） |
 | `manifests/` | 部署清单（terraform 等） |

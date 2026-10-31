@@ -4,6 +4,7 @@
 
 ### Added
 
+- 初始化 Flutter 客户端 `qtcloud_pay_lite`（`src/lite`）：用户端自服务钱包，查看余额与交易流水（自 qtaccount 迁入钱包侧，登录复用统一账号入口）
 - 规则设计页（`src/studio`，完全离线）：代金券发放规则草稿存本地 JSON（`~/.qtcloud-pay-studio/rule_drafts.json`），表单设计发放渠道（固定面额/追加奖励）、按服务端 `validatePricingRuleSet` 发放段规则实时预检，校验通过后导出可直接提交的 PUT 请求体；新增模型 `RuleDraft`/`RuleDraftChannel` 与本地仓 `LocalDraftStore`
 - 发券页新增「发放规则」只读页签（`src/studio`）：调 `GET /admin/voucher-pricing-rules` 展示发放渠道、触发条件、面额与面额规则，供监管角色（viewer）查看；新增模型 `PricingRuleSet`/`IssuanceChannel` 与解析单元测试
 - 初始化 Flutter 客户端 `qtcloud_pay_studio`（`src/studio`）
